@@ -1,7 +1,7 @@
 {
 	"name": "Python 3.11",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
+	"image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
 	// https://github.com/devcontainers/images/tree/main/src/python
 	// https://mcr.microsoft.com/en-us/product/devcontainers/python/tags
 
@@ -11,7 +11,12 @@
 	// },
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	"features": {
+		"ghcr.io/devcontainers/features/azure-cli:1": {
+		  "installBicep": true
+		},
+		"ghcr.io/azure/azure-dev/azd:0.1.0": {}
+	  },
 
 	// Configure tool-specific properties.
 	"customizations": {
@@ -28,7 +33,7 @@
 	},
 	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [4000],
+	// "forwardPorts": [4000],
 
 	"containerEnv": {
 		"LITELLM_LOG": "DEBUG"
