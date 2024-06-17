@@ -1,0 +1,30 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "environmentName": {
+        "value": "${AZURE_ENV_NAME}"
+      },
+      "location": {
+        "value": "${AZURE_LOCATION}"
+      },
+      "authSecret": {
+        "value": "${MICROSOFT_PROVIDER_AUTHENTICATION_SECRET}"
+      },
+      "authClientId": {
+        "value": "${MICROSOFT_PROVIDER_AUTHENTICATION_CLIENT_ID}"
+      },
+      "liteLLMMasterKey": {
+        "value": "${LITELLM_MASTER_KEY}"
+      },
+      "postgresDbUrl": {
+        "value": "${POSTGRES_DB_URL}"
+      },
+      "dockerImageName": {
+        "value": "${DOCKER_IMAGE_NAME}"
+      },
+      "postgresDbPassword": {
+        "value": "${POSTGRES_DB_PASSWORD}"
+      }
+    }
+}

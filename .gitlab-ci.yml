@@ -1,0 +1,90 @@
+image:
+  name: "mcr.microsoft.com/azure-dev-cli-apps:1.9.3"
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
+
+stages:
+  - deploy
+  - cleanup
+
+before_script:
+  - echo $AZD_AZURE_AD_CLIENT_ID
+  - echo $AZURE_AD_TENANT_ID
+  - azd auth login --client-id $AZD_AZURE_AD_CLIENT_ID --client-secret $AZD_AZURE_AD_CLIENT_SECRET --tenant-id $AZURE_AD_TENANT_ID
+
+provision:dev:
+  stage: deploy
+  environment: dev
+  script:
+    - azd provision --no-prompt
+  when: manual
+
+deploy:dev:
+  stage: deploy
+  environment: dev
+  services:
+    - docker:dind
+  before_script:
+    - docker --version
+    - docker info
+    - az login --service-principal --username $AZD_AZURE_AD_CLIENT_ID --password $AZD_AZURE_AD_CLIENT_SECRET --tenant $AZURE_AD_TENANT_ID
+    - az account set --subscription $AZURE_SUBSCRIPTION_ID
+    - export AZURE_CONTAINER_REGISTRY_ENDPOINT=$(az deployment group show --name registry --resource-group "rg-$AZURE_ENV_NAME" --query properties.outputs.loginServer.value -o tsv)
+    - echo $AZURE_CONTAINER_REGISTRY_ENDPOINT
+    - az acr login --name $AZURE_CONTAINER_REGISTRY_ENDPOINT
+  script:
+    - docker build -t $DOCKER_IMAGE_NAME .
+    - docker tag $DOCKER_IMAGE_NAME $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+    - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+  when: manual
+
+destroy:dev:
+  stage: cleanup
+  when: manual
+  environment: dev
+  script:
+    - azd down
+
+
+
+provision:prod:
+  stage: deploy
+  environment: prod
+  script:
+    - azd provision --no-prompt
+  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+deploy:prod:
+  stage: deploy
+  environment: prod
+  services:
+    - docker:dind
+  before_script:
+    - docker --version
+    - docker info
+    - az login --service-principal --username $AZD_AZURE_AD_CLIENT_ID --password $AZD_AZURE_AD_CLIENT_SECRET --tenant $AZURE_AD_TENANT_ID
+    - az account set --subscription $AZURE_SUBSCRIPTION_ID
+    - export AZURE_CONTAINER_REGISTRY_ENDPOINT=$(az deployment group show --name registry --resource-group "rg-$AZURE_ENV_NAME" --query properties.outputs.loginServer.value -o tsv)
+    - echo $AZURE_CONTAINER_REGISTRY_ENDPOINT
+    - az acr login --name $AZURE_CONTAINER_REGISTRY_ENDPOINT
+  script:
+    - docker build -t $DOCKER_IMAGE_NAME .
+    - docker tag $DOCKER_IMAGE_NAME $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+    - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+destroy:prod:
+  stage: cleanup
+  when: manual
+  environment: prod
+  script:
+    - azd down
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
