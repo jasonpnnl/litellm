@@ -20,6 +20,11 @@ param gpt4oDeploymentCapacity int = 200
 param gpt4oDeploymentName string = 'gpt-4o'
 param gpt4oModelName string = 'gpt-4o'
 param gpt4oModelVersion string = '2024-05-13'
+param gpt35DeploymentCapacity int = 200
+param gpt35DeploymentName string = 'gpt-35-turbo'
+param gpt35ModelName string = 'gpt-35-turbo'
+param gpt35ModelVersion string = '0125'
+param openAI2ResourceGroupLocation string = 'northcentralus'
 param embeddingDeploymentName string = 'embedding'
 param embeddingDeploymentCapacity int = 100
 param embeddingModelName string = 'text-embedding-ada-002'
@@ -74,6 +79,11 @@ module resources 'resources.bicep' = {
     gpt4oDeploymentName: gpt4oDeploymentName
     gpt4oModelName: gpt4oModelName
     gpt4oModelVersion: gpt4oModelVersion
+    gpt35DeploymentCapacity: gpt35DeploymentCapacity
+    gpt35DeploymentName: gpt35DeploymentName
+    gpt35ModelName: gpt35ModelName
+    gpt35ModelVersion: gpt35ModelVersion
+    openAI2ResourceGroupLocation: openAI2ResourceGroupLocation
     embeddingDeploymentName: embeddingDeploymentName
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
     embeddingModelName: embeddingModelName

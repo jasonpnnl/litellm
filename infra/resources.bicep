@@ -11,6 +11,11 @@ param gpt4oDeploymentCapacity int = 200
 param gpt4oDeploymentName string = 'gpt-4o'
 param gpt4oModelName string = 'gpt-4o'
 param gpt4oModelVersion string = '2024-05-13'
+param gpt35DeploymentCapacity int = 200
+param gpt35DeploymentName string = 'gpt-35-turbo'
+param gpt35ModelName string = 'gpt-35-turbo'
+param gpt35ModelVersion string = '0125'
+param openAI2ResourceGroupLocation string = 'northcentralus'
 param embeddingDeploymentName string = 'embedding'
 param embeddingDeploymentCapacity int = 120
 param embeddingModelName string = 'text-embedding-ada-002'
@@ -29,6 +34,8 @@ param location string = resourceGroup().location
 
 param tags object = {}
 
+var abbrs = loadJsonContent('./abbreviations.json')
+
 var subscriptionName = subscription().displayName
 var pnnlVnetName = '${subscriptionName}-${location}_VNET'
 var pnnlSubnetName = 'private-2'
@@ -41,6 +48,7 @@ var stripped_name = replace(name, '-', '')
 var short_prefix = take(stripped_name, 7)
 var keyVaultName = toLower('${short_prefix}-kv-${resourceToken}')
 var webhookName = toLower('webapp${name}webapp${resourceToken}')
+var openai_name_2 = toLower('${short_prefix}ai2${resourceToken}')
 
 var dockerImageNameAndTag = '${dockerImageName}/${dockerImageName}:latest'
 var latestImage = '${containerRegistryEndpoint}/${dockerImageNameAndTag}' ?? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
@@ -51,7 +59,6 @@ var allowed_audience = 'api://${authClientId}'
 var keyVaultSecretsUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var containerRegistryAcrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
-var abbrs = loadJsonContent('./abbreviations.json')
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: appservice_name
@@ -244,7 +251,7 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
           value: '30'
         }
       ]
-      ipSecurityRestrictionsDefaultAction: 'Allow'
+      ipSecurityRestrictionsDefaultAction: 'Deny'
       ipSecurityRestrictions: [
         {
           vnetSubnetResourceId: existingAppGWSubnet.id
@@ -478,6 +485,38 @@ resource embeddingdeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   sku: {
     name: 'Standard'
     capacity: embeddingDeploymentCapacity
+  }
+}
+
+resource azureopenai2 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
+  name: openai_name_2
+  location: openAI2ResourceGroupLocation
+  tags: tags
+  kind: 'OpenAI'
+  properties: {
+    customSubDomainName: openai_name_2
+    publicNetworkAccess: 'Enabled'
+  }
+  sku: {
+    name: openAiSkuName
+  }
+}
+
+resource gpt35deployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: azureopenai2
+  name: gpt35DeploymentName
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: gpt35ModelName
+      version: gpt35ModelVersion
+    }
+    raiPolicyName: null
+    dynamicThrottlingEnabled: true
+  }
+  sku: {
+    name: 'Standard'
+    capacity: gpt35DeploymentCapacity
   }
 }
 
