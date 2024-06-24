@@ -20,7 +20,7 @@ param gpt4oDeploymentCapacity int = 200
 param gpt4oDeploymentName string = 'gpt-4o'
 param gpt4oModelName string = 'gpt-4o'
 param gpt4oModelVersion string = '2024-05-13'
-param gpt35DeploymentCapacity int = 200
+param gpt35DeploymentCapacity int = (environmentName == 'aiendpointprod') ? 200 : 50
 param gpt35DeploymentName string = 'gpt-35-turbo'
 param gpt35ModelName string = 'gpt-35-turbo'
 param gpt35ModelVersion string = '0125'
