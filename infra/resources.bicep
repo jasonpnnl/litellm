@@ -263,6 +263,10 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'PROXY_ADMIN_ID'
           value: '355ca704-e3ca-4478-a9b8-2221253b4af1'
         }
+        {
+          name: 'DISABLE_FALLBACK_LOGIN'
+          value: 'true'
+        }
       ]
       ipSecurityRestrictionsDefaultAction: 'Deny'
       ipSecurityRestrictions: [
