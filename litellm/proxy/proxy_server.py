@@ -3013,12 +3013,10 @@ class ProxyConfig:
             model.model_info["id"] = _id
             model.model_info["db_model"] = True
 
-        if premium_user is True:
-            # seeing "created_at", "updated_at", "created_by", "updated_by" is a LiteLLM Enterprise Feature
-            model.model_info["created_at"] = getattr(model, "created_at", None)
-            model.model_info["updated_at"] = getattr(model, "updated_at", None)
-            model.model_info["created_by"] = getattr(model, "created_by", None)
-            model.model_info["updated_by"] = getattr(model, "updated_by", None)
+        model.model_info["created_at"] = getattr(model, "created_at", None)
+        model.model_info["updated_at"] = getattr(model, "updated_at", None)
+        model.model_info["created_by"] = getattr(model, "created_by", None)
+        model.model_info["updated_by"] = getattr(model, "updated_by", None)
 
         if model.model_info is not None and isinstance(model.model_info, dict):
             if "id" not in model.model_info:
@@ -12263,20 +12261,6 @@ async def google_login(request: Request):
     microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID", None)
     google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
     generic_client_id = os.getenv("GENERIC_CLIENT_ID", None)
-
-    ####### Check if user is a Enterprise / Premium User #######
-    if (
-        microsoft_client_id is not None
-        or google_client_id is not None
-        or generic_client_id is not None
-    ):
-        if premium_user != True:
-            raise ProxyException(
-                message="You must be a LiteLLM Enterprise user to use SSO. If you have a license please set `LITELLM_LICENSE` in your env. If you want to obtain a license meet with us here: https://calendly.com/d/4mp-gd3-k5k/litellm-1-1-onboarding-chat You are seeing this error message because You set one of `MICROSOFT_CLIENT_ID`, `GOOGLE_CLIENT_ID`, or `GENERIC_CLIENT_ID` in your env. Please unset this",
-                type="auth_error",
-                param="premium_user",
-                code=status.HTTP_403_FORBIDDEN,
-            )
 
     ####### Detect DB + MASTER KEY in .env #######
     if prisma_client is None or master_key is None:
