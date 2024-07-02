@@ -58,6 +58,7 @@ var allowed_audience = 'api://${authClientId}'
 
 var keyVaultSecretsUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var containerRegistryAcrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+var proxyBaseUrl = (name == 'aiendpointdev' ? 'https://ai-incubator-dev-api.pnnl.gov/' : name == 'aiendpointprod' ? 'https://ai-incubator-api.pnnl.gov/' : 'https://${webapp_name}.azurewebsites.net/')
 
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
@@ -235,11 +236,15 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
           value: '@Microsoft.KeyVault(VaultName=${kv.name};SecretName=${kv::LITELLM_MASTER_KEY.name})'
         }
         {
-          name: 'WEBSITE_AUTH_AAD_ALLOWED_TENANTS'
+          name: 'MICROSOFT_TENANT'
           value: 'd6faa5f9-0ae2-4033-8c01-30048a38deeb'
         }
         {
-          name: 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
+          name: 'MICROSOFT_CLIENT_ID'
+          value: authClientId
+        }
+        {
+          name: 'MICROSOFT_CLIENT_SECRET'
           value: authSecret
         }
         {
@@ -249,6 +254,14 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'WEBSITE_HTTPLOGGING_RETENTION_DAYS'
           value: '30'
+        }
+        {
+          name: 'PROXY_BASE_URL'
+          value: proxyBaseUrl
+        }
+        {
+          name: 'PROXY_ADMIN_ID'
+          value: '355ca704-e3ca-4478-a9b8-2221253b4af1'
         }
       ]
       ipSecurityRestrictionsDefaultAction: 'Deny'

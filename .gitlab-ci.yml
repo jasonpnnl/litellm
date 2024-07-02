@@ -7,6 +7,7 @@ variables:
 
 
 stages:
+  - provision
   - deploy
   - cleanup
 
@@ -16,7 +17,7 @@ before_script:
   - azd auth login --client-id $AZD_AZURE_AD_CLIENT_ID --client-secret $AZD_AZURE_AD_CLIENT_SECRET --tenant-id $AZURE_AD_TENANT_ID
 
 provision:dev:
-  stage: deploy
+  stage: provision
   environment: dev
   script:
     - azd provision --no-prompt
@@ -51,7 +52,7 @@ destroy:dev:
 
 
 provision:prod:
-  stage: deploy
+  stage: provision
   environment: prod
   script:
     - azd provision --no-prompt
