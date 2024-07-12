@@ -246,9 +246,9 @@ class LiteLLMRoutes(enum.Enum):
     ]
 
     sso_only_routes: List = [
-        "/key/generate",
-        "/key/update",
-        "/key/delete",
+        # "/key/generate",
+        # "/key/update",
+        # "/key/delete",
         "/global/spend/logs",
         "/global/predict/spend/logs",
         "/sso/get/logout_url",
