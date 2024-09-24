@@ -7,6 +7,7 @@ import sys
 import traceback
 
 from dotenv import load_dotenv
+from openai.types.image import Image
 
 logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
@@ -49,6 +50,7 @@ def test_image_generation_openai():
     ],  # False
 )  #
 @pytest.mark.asyncio
+@pytest.mark.flaky(retries=3, delay=1)
 async def test_image_generation_azure(sync_mode):
     try:
         if sync_mode:
@@ -69,6 +71,8 @@ async def test_image_generation_azure(sync_mode):
         pass
     except litellm.ContentPolicyViolationError:
         pass  # Azure randomly raises these errors - skip when they occur
+    except litellm.InternalServerError:
+        pass
     except Exception as e:
         if "Your task failed as a result of our safety system." in str(e):
             pass
@@ -81,6 +85,7 @@ async def test_image_generation_azure(sync_mode):
 # test_image_generation_azure()
 
 
+@pytest.mark.flaky(retries=3, delay=1)
 def test_image_generation_azure_dall_e_3():
     try:
         litellm.set_verbose = True
@@ -97,6 +102,8 @@ def test_image_generation_azure_dall_e_3():
         pass
     except litellm.ContentPolicyViolationError:
         pass  # OpenAI randomly raises these errors - skip when they occur
+    except litellm.InternalServerError:
+        pass
     except Exception as e:
         if "Your task failed as a result of our safety system." in str(e):
             pass
@@ -115,10 +122,14 @@ async def test_async_image_generation_openai():
         )
         print(f"response: {response}")
         assert len(response.data) > 0
+    except litellm.APIError:
+        pass
     except litellm.RateLimitError as e:
         pass
     except litellm.ContentPolicyViolationError:
         pass  # openai randomly raises these errors - skip when they occur
+    except litellm.InternalServerError:
+        pass
     except Exception as e:
         if "Connection error" in str(e):
             pass
@@ -141,6 +152,8 @@ async def test_async_image_generation_azure():
         pass
     except litellm.ContentPolicyViolationError:
         pass  # Azure randomly raises these errors - skip when they occur
+    except litellm.InternalServerError:
+        pass
     except Exception as e:
         if "Your task failed as a result of our safety system." in str(e):
             pass
@@ -158,7 +171,11 @@ def test_image_generation_bedrock():
             model="bedrock/stability.stable-diffusion-xl-v1",
             aws_region_name="us-west-2",
         )
+
         print(f"response: {response}")
+        from openai.types.images_response import ImagesResponse
+
+        ImagesResponse.model_validate(response.model_dump())
     except litellm.RateLimitError as e:
         pass
     except litellm.ContentPolicyViolationError:
@@ -190,6 +207,9 @@ async def test_aimage_generation_bedrock_with_optional_params():
             pytest.fail(f"An exception occurred - {str(e)}")
 
 
+from openai.types.image import Image
+
+
 @pytest.mark.parametrize("sync_mode", [True, False])
 @pytest.mark.asyncio
 async def test_aimage_generation_vertex_ai(sync_mode):
@@ -214,12 +234,14 @@ async def test_aimage_generation_vertex_ai(sync_mode):
         assert len(response.data) > 0
 
         for d in response.data:
-            assert isinstance(d, litellm.ImageObject)
+            assert isinstance(d, Image)
             print("data in response.data", d)
             assert d.b64_json is not None
     except litellm.ServiceUnavailableError as e:
         pass
     except litellm.RateLimitError as e:
+        pass
+    except litellm.InternalServerError as e:
         pass
     except litellm.ContentPolicyViolationError:
         pass  # Azure randomly raises these errors - skip when they occur

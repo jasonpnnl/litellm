@@ -1,7 +1,8 @@
-from litellm.integrations.custom_logger import CustomLogger
+from typing import Literal, Optional
+
 import litellm
-from litellm.proxy.proxy_server import UserAPIKeyAuth, DualCache
-from typing import Optional, Literal
+from litellm.integrations.custom_logger import CustomLogger
+from litellm.proxy.proxy_server import DualCache, UserAPIKeyAuth
 
 
 # This file includes the custom callbacks for LiteLLM Proxy
@@ -27,17 +28,23 @@ class MyCustomHandler(
             "image_generation",
             "moderation",
             "audio_transcription",
+            "pass_through_endpoint",
+            "rerank",
         ],
     ):
         return data
 
     async def async_post_call_failure_hook(
-        self, original_exception: Exception, user_api_key_dict: UserAPIKeyAuth
+        self,
+        request_data: dict,
+        original_exception: Exception,
+        user_api_key_dict: UserAPIKeyAuth,
     ):
         pass
 
     async def async_post_call_success_hook(
         self,
+        data: dict,
         user_api_key_dict: UserAPIKeyAuth,
         response,
     ):
@@ -48,7 +55,13 @@ class MyCustomHandler(
         self,
         data: dict,
         user_api_key_dict: UserAPIKeyAuth,
-        call_type: Literal["completion", "embeddings", "image_generation"],
+        call_type: Literal[
+            "completion",
+            "embeddings",
+            "image_generation",
+            "moderation",
+            "audio_transcription",
+        ],
     ):
         pass
 

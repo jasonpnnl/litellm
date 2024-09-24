@@ -1,6 +1,7 @@
 # Text to Speech
 
-## Quick Start 
+## **LiteLLM Python SDK Usage**
+### Quick Start 
 
 ```python
 from pathlib import Path
@@ -18,7 +19,7 @@ response = speech(
 response.stream_to_file(speech_file_path)
 ```
 
-## Async Usage 
+### Async Usage 
 
 ```python
 from litellm import aspeech
@@ -47,7 +48,7 @@ async def test_async_speech():
 asyncio.run(test_async_speech())
 ```
 
-## Proxy Usage 
+## **LiteLLM Proxy Usage**
 
 LiteLLM provides an openai-compatible `/audio/speech` endpoint for Text-to-speech calls.
 
@@ -77,36 +78,39 @@ litellm --config /path/to/config.yaml
 
 # RUNNING on http://0.0.0.0:4000
 ```
+## **Supported Providers**
 
-## Azure Usage 
+| Provider    | Link to Usage      |
+|-------------|--------------------|
+| OpenAI      |   [Usage](#quick-start)                 |
+| Azure OpenAI|   [Usage](../docs/providers/azure#azure-text-to-speech-tts)                 |
+| Vertex AI   |   [Usage](../docs/providers/vertex#text-to-speech-apis)                 |
 
-**PROXY**
+## ✨ Enterprise LiteLLM Proxy - Set Max Request File Size 
+
+Use this when you want to limit the file size for requests sent to `audio/transcriptions`
 
 ```yaml
- - model_name: azure/tts-1
-    litellm_params:
-      model: azure/tts-1
-      api_base: "os.environ/AZURE_API_BASE_TTS"
-      api_key: "os.environ/AZURE_API_KEY_TTS"
-      api_version: "os.environ/AZURE_API_VERSION" 
+- model_name: whisper
+  litellm_params:
+    model: whisper-1
+    api_key: sk-*******
+    max_file_size_mb: 0.00001 # 👈 max file size in MB  (Set this intentionally very small for testing)
+  model_info:
+    mode: audio_transcription
 ```
 
-**SDK**
+Make a test Request with a valid file
+```shell
+curl --location 'http://localhost:4000/v1/audio/transcriptions' \
+--header 'Authorization: Bearer sk-1234' \
+--form 'file=@"/Users/ishaanjaffer/Github/litellm/tests/gettysburg.wav"' \
+--form 'model="whisper"'
+```
 
-```python 
-from litellm import completion
 
-## set ENV variables
-os.environ["AZURE_API_KEY"] = ""
-os.environ["AZURE_API_BASE"] = ""
-os.environ["AZURE_API_VERSION"] = ""
+Expect to see the follow response 
 
-# azure call
-speech_file_path = Path(__file__).parent / "speech.mp3"
-response = speech(
-        model="azure/<your-deployment-name",
-        voice="alloy",
-        input="the quick brown fox jumped over the lazy dogs",
-    )
-response.stream_to_file(speech_file_path)
+```shell
+{"error":{"message":"File size is too large. Please check your file size. Passed file size: 0.7392807006835938 MB. Max file size: 0.0001 MB","type":"bad_request","param":"file","code":500}}%  
 ```

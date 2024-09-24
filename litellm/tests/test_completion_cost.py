@@ -8,8 +8,10 @@ sys.path.insert(
     0, os.path.abspath("../..")
 )  # Adds the parent directory to the system path
 import asyncio
+import os
 import time
 from typing import Optional
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -41,6 +43,14 @@ class CustomLoggingHandler(CustomLogger):
 
         print(f"response_cost: {self.response_cost} ")
 
+    def log_failure_event(self, kwargs, response_obj, start_time, end_time):
+        print("Reaches log failure event!")
+        self.response_cost = kwargs["response_cost"]
+
+    async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
+        print("Reaches async log failure event!")
+        self.response_cost = kwargs["response_cost"]
+
 
 @pytest.mark.parametrize("sync_mode", [True, False])
 @pytest.mark.asyncio
@@ -65,6 +75,41 @@ async def test_custom_pricing(sync_mode):
             output_cost_per_token=0.0,
         )
 
+        await asyncio.sleep(5)
+
+    print(f"new_handler.response_cost: {new_handler.response_cost}")
+    assert new_handler.response_cost is not None
+
+    assert new_handler.response_cost == 0
+
+
+@pytest.mark.parametrize(
+    "sync_mode",
+    [True, False],
+)
+@pytest.mark.asyncio
+async def test_failure_completion_cost(sync_mode):
+    new_handler = CustomLoggingHandler()
+    litellm.callbacks = [new_handler]
+    if sync_mode:
+        try:
+            response = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Hey!"}],
+                mock_response=Exception("this should trigger an error"),
+            )
+        except Exception:
+            pass
+        time.sleep(5)
+    else:
+        try:
+            response = await litellm.acompletion(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Hey!"}],
+                mock_response=Exception("this should trigger an error"),
+            )
+        except Exception:
+            pass
         await asyncio.sleep(5)
 
     print(f"new_handler.response_cost: {new_handler.response_cost}")
@@ -218,9 +263,7 @@ def test_cost_azure_gpt_35():
         print("\n Excpected cost", expected_cost)
         assert cost == expected_cost
     except Exception as e:
-        pytest.fail(
-            f"Cost Calc failed for azure/gpt-3.5-turbo. Expected {expected_cost}, Calculated cost {cost}"
-        )
+        pytest.fail(f"Cost Calc failed for azure/gpt-3.5-turbo. {str(e)}")
 
 
 # test_cost_azure_gpt_35()
@@ -662,6 +705,33 @@ def test_vertex_ai_completion_cost():
     print("calculated_input_cost: {}".format(calculated_input_cost))
 
 
+@pytest.mark.skip(reason="new test - WIP, working on fixing this")
+def test_vertex_ai_medlm_completion_cost():
+    """Test for medlm completion cost ."""
+
+    with pytest.raises(Exception) as e:
+        model = "vertex_ai/medlm-medium"
+        messages = [{"role": "user", "content": "Test MedLM completion cost."}]
+        predictive_cost = completion_cost(
+            model=model, messages=messages, custom_llm_provider="vertex_ai"
+        )
+
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    litellm.model_cost = litellm.get_model_cost_map(url="")
+
+    model = "vertex_ai/medlm-medium"
+    messages = [{"role": "user", "content": "Test MedLM completion cost."}]
+    predictive_cost = completion_cost(
+        model=model, messages=messages, custom_llm_provider="vertex_ai"
+    )
+    assert predictive_cost > 0
+
+    model = "vertex_ai/medlm-large"
+    messages = [{"role": "user", "content": "Test MedLM completion cost."}]
+    predictive_cost = completion_cost(model=model, messages=messages)
+    assert predictive_cost > 0
+
+
 def test_vertex_ai_claude_completion_cost():
     from litellm import Choices, Message, ModelResponse
     from litellm.utils import Usage
@@ -785,9 +855,32 @@ def test_vertex_ai_embedding_completion_cost(caplog):
 #     assert False
 
 
+def test_completion_azure_ai():
+    try:
+        os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+        litellm.model_cost = litellm.get_model_cost_map(url="")
+
+        litellm.set_verbose = True
+        response = litellm.completion(
+            model="azure_ai/Mistral-large-nmefg",
+            messages=[{"content": "what llm are you", "role": "user"}],
+            max_tokens=15,
+            num_retries=3,
+            api_base=os.getenv("AZURE_AI_MISTRAL_API_BASE"),
+            api_key=os.getenv("AZURE_AI_MISTRAL_API_KEY"),
+        )
+        print(response)
+
+        assert "response_cost" in response._hidden_params
+        assert isinstance(response._hidden_params["response_cost"], float)
+    except Exception as e:
+        pytest.fail(f"Error occurred: {e}")
+
+
 @pytest.mark.parametrize("sync_mode", [True, False])
 @pytest.mark.asyncio
 async def test_completion_cost_hidden_params(sync_mode):
+    litellm.return_response_headers = True
     if sync_mode:
         response = litellm.completion(
             model="gpt-3.5-turbo",
@@ -813,6 +906,62 @@ def test_vertex_ai_gemini_predict_cost():
     assert predictive_cost > 0
 
 
+def test_vertex_ai_llama_predict_cost():
+    model = "meta/llama3-405b-instruct-maas"
+    messages = [{"role": "user", "content": "Hey, hows it going???"}]
+    custom_llm_provider = "vertex_ai"
+    predictive_cost = completion_cost(
+        model=model, messages=messages, custom_llm_provider=custom_llm_provider
+    )
+
+    assert predictive_cost == 0
+
+
+@pytest.mark.parametrize("usage", ["litellm_usage", "openai_usage"])
+def test_vertex_ai_mistral_predict_cost(usage):
+    from litellm.types.utils import Choices, Message, ModelResponse, Usage
+
+    if usage == "litellm_usage":
+        response_usage = Usage(prompt_tokens=32, completion_tokens=55, total_tokens=87)
+    else:
+        from openai.types.completion_usage import CompletionUsage
+
+        response_usage = CompletionUsage(
+            prompt_tokens=32, completion_tokens=55, total_tokens=87
+        )
+    response_object = ModelResponse(
+        id="26c0ef045020429d9c5c9b078c01e564",
+        choices=[
+            Choices(
+                finish_reason="stop",
+                index=0,
+                message=Message(
+                    content="Hello! I'm Litellm Bot, your helpful assistant. While I can't provide real-time weather updates, I can help you find a reliable weather service or guide you on how to check the weather on your device. Would you like assistance with that?",
+                    role="assistant",
+                    tool_calls=None,
+                    function_call=None,
+                ),
+            )
+        ],
+        created=1722124652,
+        model="vertex_ai/mistral-large",
+        object="chat.completion",
+        system_fingerprint=None,
+        usage=response_usage,
+    )
+    model = "mistral-large@2407"
+    messages = [{"role": "user", "content": "Hey, hows it going???"}]
+    custom_llm_provider = "vertex_ai"
+    predictive_cost = completion_cost(
+        completion_response=response_object,
+        model=model,
+        messages=messages,
+        custom_llm_provider=custom_llm_provider,
+    )
+
+    assert predictive_cost > 0
+
+
 @pytest.mark.parametrize("model", ["openai/tts-1", "azure/tts-1"])
 def test_completion_cost_tts(model):
     os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
@@ -825,3 +974,352 @@ def test_completion_cost_tts(model):
     )
 
     assert cost > 0
+
+
+def test_completion_cost_anthropic():
+    """
+    model_name: claude-3-haiku-20240307
+    litellm_params:
+      model: anthropic/claude-3-haiku-20240307
+      max_tokens: 4096
+    """
+    router = litellm.Router(
+        model_list=[
+            {
+                "model_name": "claude-3-haiku-20240307",
+                "litellm_params": {
+                    "model": "anthropic/claude-3-haiku-20240307",
+                    "max_tokens": 4096,
+                },
+            }
+        ]
+    )
+    data = {
+        "model": "claude-3-haiku-20240307",
+        "prompt_tokens": 21,
+        "completion_tokens": 20,
+        "response_time_ms": 871.7040000000001,
+        "custom_llm_provider": "anthropic",
+        "region_name": None,
+        "prompt_characters": 0,
+        "completion_characters": 0,
+        "custom_cost_per_token": None,
+        "custom_cost_per_second": None,
+        "call_type": "acompletion",
+    }
+
+    input_cost, output_cost = cost_per_token(**data)
+
+    assert input_cost > 0
+    assert output_cost > 0
+
+    print(input_cost)
+    print(output_cost)
+
+
+def test_completion_cost_deepseek():
+    litellm.set_verbose = True
+    model_name = "deepseek/deepseek-chat"
+    messages_1 = [
+        {
+            "role": "system",
+            "content": "You are a history expert. The user will provide a series of questions, and your answers should be concise and start with `Answer:`",
+        },
+        {
+            "role": "user",
+            "content": "In what year did Qin Shi Huang unify the six states?",
+        },
+        {"role": "assistant", "content": "Answer: 221 BC"},
+        {"role": "user", "content": "Who was the founder of the Han Dynasty?"},
+        {"role": "assistant", "content": "Answer: Liu Bang"},
+        {"role": "user", "content": "Who was the last emperor of the Tang Dynasty?"},
+        {"role": "assistant", "content": "Answer: Li Zhu"},
+        {
+            "role": "user",
+            "content": "Who was the founding emperor of the Ming Dynasty?",
+        },
+        {"role": "assistant", "content": "Answer: Zhu Yuanzhang"},
+        {
+            "role": "user",
+            "content": "Who was the founding emperor of the Qing Dynasty?",
+        },
+    ]
+
+    message_2 = [
+        {
+            "role": "system",
+            "content": "You are a history expert. The user will provide a series of questions, and your answers should be concise and start with `Answer:`",
+        },
+        {
+            "role": "user",
+            "content": "In what year did Qin Shi Huang unify the six states?",
+        },
+        {"role": "assistant", "content": "Answer: 221 BC"},
+        {"role": "user", "content": "Who was the founder of the Han Dynasty?"},
+        {"role": "assistant", "content": "Answer: Liu Bang"},
+        {"role": "user", "content": "Who was the last emperor of the Tang Dynasty?"},
+        {"role": "assistant", "content": "Answer: Li Zhu"},
+        {
+            "role": "user",
+            "content": "Who was the founding emperor of the Ming Dynasty?",
+        },
+        {"role": "assistant", "content": "Answer: Zhu Yuanzhang"},
+        {"role": "user", "content": "When did the Shang Dynasty fall?"},
+    ]
+    try:
+        response_1 = litellm.completion(model=model_name, messages=messages_1)
+        response_2 = litellm.completion(model=model_name, messages=message_2)
+        # Add any assertions here to check the response
+        print(response_2)
+        assert response_2.usage.prompt_cache_hit_tokens is not None
+        assert response_2.usage.prompt_cache_miss_tokens is not None
+        assert (
+            response_2.usage.prompt_tokens == response_2.usage.prompt_cache_miss_tokens
+        )
+        assert (
+            response_2.usage._cache_read_input_tokens
+            == response_2.usage.prompt_cache_hit_tokens
+        )
+    except litellm.APIError as e:
+        pass
+    except Exception as e:
+        pytest.fail(f"Error occurred: {e}")
+
+
+def test_completion_cost_azure_common_deployment_name():
+    from litellm.utils import (
+        CallTypes,
+        Choices,
+        Delta,
+        Message,
+        ModelResponse,
+        StreamingChoices,
+        Usage,
+    )
+
+    router = litellm.Router(
+        model_list=[
+            {
+                "model_name": "gpt-4",
+                "litellm_params": {
+                    "model": "azure/gpt-4-0314",
+                    "max_tokens": 4096,
+                    "api_key": os.getenv("AZURE_API_KEY"),
+                    "api_base": os.getenv("AZURE_API_BASE"),
+                },
+                "model_info": {"base_model": "azure/gpt-4"},
+            }
+        ]
+    )
+
+    response = ModelResponse(
+        id="chatcmpl-876cce24-e520-4cf8-8649-562a9be11c02",
+        choices=[
+            Choices(
+                finish_reason="stop",
+                index=0,
+                message=Message(
+                    content="Hi! I'm an AI, so I don't have emotions or feelings like humans do, but I'm functioning properly and ready to help with any questions or topics you'd like to discuss! How can I assist you today?",
+                    role="assistant",
+                ),
+            )
+        ],
+        created=1717519830,
+        model="gpt-4",
+        object="chat.completion",
+        system_fingerprint="fp_c1a4bcec29",
+        usage=Usage(completion_tokens=46, prompt_tokens=17, total_tokens=63),
+    )
+    response._hidden_params["custom_llm_provider"] = "azure"
+    print(response)
+
+    with patch.object(
+        litellm.cost_calculator, "completion_cost", new=MagicMock()
+    ) as mock_client:
+        _ = litellm.response_cost_calculator(
+            response_object=response,
+            model="gpt-4-0314",
+            custom_llm_provider="azure",
+            call_type=CallTypes.acompletion.value,
+            optional_params={},
+            base_model="azure/gpt-4",
+        )
+
+        mock_client.assert_called()
+
+        print(f"mock_client.call_args: {mock_client.call_args.kwargs}")
+        assert "azure/gpt-4" == mock_client.call_args.kwargs["model"]
+
+
+def test_completion_cost_anthropic_prompt_caching():
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    litellm.model_cost = litellm.get_model_cost_map(url="")
+
+    from litellm.utils import Choices, Message, ModelResponse, Usage
+
+    model = "anthropic/claude-3-5-sonnet-20240620"
+
+    ## WRITE TO CACHE ## (MORE EXPENSIVE)
+    response_1 = ModelResponse(
+        id="chatcmpl-3f427194-0840-4d08-b571-56bfe38a5424",
+        choices=[
+            Choices(
+                finish_reason="length",
+                index=0,
+                message=Message(
+                    content="Hello! I'm doing well, thank you for",
+                    role="assistant",
+                    tool_calls=None,
+                    function_call=None,
+                ),
+            )
+        ],
+        created=1725036547,
+        model="claude-3-5-sonnet-20240620",
+        object="chat.completion",
+        system_fingerprint=None,
+        usage=Usage(
+            completion_tokens=10,
+            prompt_tokens=14,
+            total_tokens=24,
+            cache_creation_input_tokens=100,
+            cache_read_input_tokens=0,
+        ),
+    )
+
+    ## READ FROM CACHE ## (LESS EXPENSIVE)
+    response_2 = ModelResponse(
+        id="chatcmpl-3f427194-0840-4d08-b571-56bfe38a5424",
+        choices=[
+            Choices(
+                finish_reason="length",
+                index=0,
+                message=Message(
+                    content="Hello! I'm doing well, thank you for",
+                    role="assistant",
+                    tool_calls=None,
+                    function_call=None,
+                ),
+            )
+        ],
+        created=1725036547,
+        model="claude-3-5-sonnet-20240620",
+        object="chat.completion",
+        system_fingerprint=None,
+        usage=Usage(
+            completion_tokens=10,
+            prompt_tokens=14,
+            total_tokens=24,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=100,
+        ),
+    )
+
+    cost_1 = completion_cost(model=model, completion_response=response_1)
+    cost_2 = completion_cost(model=model, completion_response=response_2)
+
+    assert cost_1 > cost_2
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "databricks/databricks-meta-llama-3-1-70b-instruct",
+        "databricks/databricks-meta-llama-3-70b-instruct",
+        "databricks/databricks-dbrx-instruct",
+        "databricks/databricks-mixtral-8x7b-instruct",
+    ],
+)
+def test_completion_cost_databricks(model):
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    litellm.model_cost = litellm.get_model_cost_map(url="")
+    model, messages = model, [{"role": "user", "content": "What is 2+2?"}]
+
+    resp = litellm.completion(model=model, messages=messages)  # works fine
+
+    print(resp)
+    cost = completion_cost(completion_response=resp)
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "databricks/databricks-bge-large-en",
+        "databricks/databricks-gte-large-en",
+    ],
+)
+def test_completion_cost_databricks_embedding(model):
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    litellm.model_cost = litellm.get_model_cost_map(url="")
+    resp = litellm.embedding(model=model, input=["hey, how's it going?"])  # works fine
+
+    print(resp)
+    cost = completion_cost(completion_response=resp)
+
+
+from litellm.llms.fireworks_ai.cost_calculator import get_base_model_for_pricing
+
+
+@pytest.mark.parametrize(
+    "model, base_model",
+    [
+        ("fireworks_ai/llama-v3p1-405b-instruct", "fireworks-ai-default"),
+        ("fireworks_ai/mixtral-8x7b-instruct", "fireworks-ai-moe-up-to-56b"),
+    ],
+)
+def test_get_model_params_fireworks_ai(model, base_model):
+    pricing_model = get_base_model_for_pricing(model_name=model)
+    assert base_model == pricing_model
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["fireworks_ai/llama-v3p1-405b-instruct", "fireworks_ai/mixtral-8x7b-instruct"],
+)
+def test_completion_cost_fireworks_ai(model):
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    litellm.model_cost = litellm.get_model_cost_map(url="")
+
+    messages = [{"role": "user", "content": "Hey, how's it going?"}]
+    resp = litellm.completion(model=model, messages=messages)  # works fine
+
+    print(resp)
+    cost = completion_cost(completion_response=resp)
+
+
+def test_completion_cost_vertex_llama3():
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    litellm.model_cost = litellm.get_model_cost_map(url="")
+
+    from litellm.utils import Choices, Message, ModelResponse, Usage
+
+    response = ModelResponse(
+        id="2024-09-19|14:52:01.823070-07|3.10.13.64|-333502972",
+        choices=[
+            Choices(
+                finish_reason="stop",
+                index=0,
+                message=Message(
+                    content="My name is Litellm Bot, and I'm here to help you with any questions or tasks you may have. As for the weather, I'd be happy to provide you with the current conditions and forecast for your location. However, I'm a large language model, I don't have real-time access to your location, so I'll need you to tell me where you are or provide me with a specific location you're interested in knowing the weather for.\\n\\nOnce you provide me with that information, I can give you the current weather conditions, including temperature, humidity, wind speed, and more, as well as a forecast for the next few days. Just let me know how I can assist you!",
+                    role="assistant",
+                    tool_calls=None,
+                    function_call=None,
+                ),
+            )
+        ],
+        created=1726782721,
+        model="vertex_ai/meta/llama3-405b-instruct-maas",
+        object="chat.completion",
+        system_fingerprint="",
+        usage=Usage(
+            completion_tokens=152,
+            prompt_tokens=27,
+            total_tokens=179,
+            completion_tokens_details=None,
+        ),
+    )
+
+    model = "vertex_ai/meta/llama3-8b-instruct-maas"
+    cost = completion_cost(model=model, completion_response=response)
+
+    assert cost == 0

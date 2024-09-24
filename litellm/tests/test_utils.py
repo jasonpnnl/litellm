@@ -173,6 +173,71 @@ def test_trimming_with_system_message_exceeding_max_tokens():
     assert len(trimmed_messages) == 1
 
 
+def test_trimming_with_tool_calls():
+    from litellm.types.utils import ChatCompletionMessageToolCall, Function, Message
+
+    messages = [
+        {
+            "role": "user",
+            "content": "What's the weather like in San Francisco, Tokyo, and Paris?",
+        },
+        Message(
+            content=None,
+            role="assistant",
+            tool_calls=[
+                ChatCompletionMessageToolCall(
+                    function=Function(
+                        arguments='{"location": "San Francisco, CA", "unit": "celsius"}',
+                        name="get_current_weather",
+                    ),
+                    id="call_G11shFcS024xEKjiAOSt6Tc9",
+                    type="function",
+                ),
+                ChatCompletionMessageToolCall(
+                    function=Function(
+                        arguments='{"location": "Tokyo, Japan", "unit": "celsius"}',
+                        name="get_current_weather",
+                    ),
+                    id="call_e0ss43Bg7H8Z9KGdMGWyZ9Mj",
+                    type="function",
+                ),
+                ChatCompletionMessageToolCall(
+                    function=Function(
+                        arguments='{"location": "Paris, France", "unit": "celsius"}',
+                        name="get_current_weather",
+                    ),
+                    id="call_nRjLXkWTJU2a4l9PZAf5as6g",
+                    type="function",
+                ),
+            ],
+            function_call=None,
+        ),
+        {
+            "tool_call_id": "call_G11shFcS024xEKjiAOSt6Tc9",
+            "role": "tool",
+            "name": "get_current_weather",
+            "content": '{"location": "San Francisco", "temperature": "72", "unit": "fahrenheit"}',
+        },
+        {
+            "tool_call_id": "call_e0ss43Bg7H8Z9KGdMGWyZ9Mj",
+            "role": "tool",
+            "name": "get_current_weather",
+            "content": '{"location": "Tokyo", "temperature": "10", "unit": "celsius"}',
+        },
+        {
+            "tool_call_id": "call_nRjLXkWTJU2a4l9PZAf5as6g",
+            "role": "tool",
+            "name": "get_current_weather",
+            "content": '{"location": "Paris", "temperature": "22", "unit": "celsius"}',
+        },
+    ]
+    result = trim_messages(messages=messages, max_tokens=1, return_response_tokens=True)
+
+    print(result)
+
+    assert len(result[0]) == 3  # final 3 messages are tool calls
+
+
 def test_trimming_should_not_change_original_messages():
     messages = [
         {"role": "system", "content": "This is a short system message"},
@@ -533,7 +598,7 @@ def test_get_llm_provider_ft_models():
     All ft prefixed models should map to OpenAI
     gpt-3.5-turbo-0125 (recommended),
     gpt-3.5-turbo-1106,
-    gpt-3.5-turbo-0613,
+    gpt-3.5-turbo,
     gpt-4-0613 (experimental)
     gpt-4o-2024-05-13.
     babbage-002, davinci-002,
@@ -545,13 +610,13 @@ def test_get_llm_provider_ft_models():
     model, custom_llm_provider, _, _ = get_llm_provider(model="ft:gpt-3.5-turbo-1106")
     assert custom_llm_provider == "openai"
 
-    model, custom_llm_provider, _, _ = get_llm_provider(model="ft:gpt-3.5-turbo-0613")
+    model, custom_llm_provider, _, _ = get_llm_provider(model="ft:gpt-3.5-turbo")
     assert custom_llm_provider == "openai"
 
     model, custom_llm_provider, _, _ = get_llm_provider(model="ft:gpt-4-0613")
     assert custom_llm_provider == "openai"
 
-    model, custom_llm_provider, _, _ = get_llm_provider(model="ft:gpt-3.5-turbo-0613")
+    model, custom_llm_provider, _, _ = get_llm_provider(model="ft:gpt-3.5-turbo")
     assert custom_llm_provider == "openai"
 
     model, custom_llm_provider, _, _ = get_llm_provider(model="ft:gpt-4o-2024-05-13")
@@ -696,3 +761,16 @@ def test_supports_response_schema(model, expected_bool):
     response = supports_response_schema(model=model, custom_llm_provider=None)
 
     assert expected_bool == response
+
+
+def test_usage_object_null_tokens():
+    """
+    Unit test.
+
+    Asserts Usage obj always returns int.
+
+    Fixes https://github.com/BerriAI/litellm/issues/5096
+    """
+    usage_obj = litellm.Usage(prompt_tokens=2, completion_tokens=None, total_tokens=2)
+
+    assert usage_obj.completion_tokens == 0

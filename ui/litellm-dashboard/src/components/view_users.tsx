@@ -52,6 +52,11 @@ interface ViewUserDashboardProps {
   teams: any[] | null;
   setKeys: React.Dispatch<React.SetStateAction<Object[] | null>>;
 }
+const isLocal = process.env.NODE_ENV === "development";
+const proxyBaseUrl = isLocal ? "http://localhost:4000" : null;
+if (isLocal != true) {
+  console.log = function() {};
+}
 
 const ViewUserDashboard: React.FC<ViewUserDashboardProps> = ({
   accessToken,
@@ -64,7 +69,7 @@ const ViewUserDashboard: React.FC<ViewUserDashboardProps> = ({
 }) => {
   const [userData, setUserData] = useState<null | any[]>(null);
   const [endUsers, setEndUsers] = useState<null | any[]>(null);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [openDialogId, setOpenDialogId] = React.useState<null | number>(null);
   const [selectedItem, setSelectedItem] = useState<null | any>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -119,7 +124,7 @@ const ViewUserDashboard: React.FC<ViewUserDashboardProps> = ({
           defaultPageSize
         );
         console.log("user data response:", userDataResponse);
-        setUserData(userDataResponse);
+        setUserData(userDataResponse.users);
 
         const availableUserRoles = await getPossibleUserRoles(accessToken);
         setPossibleUIRoles(availableUserRoles);
