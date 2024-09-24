@@ -31,6 +31,7 @@ deploy:dev:
   before_script:
     - docker --version
     - docker info
+    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
     - az login --service-principal --username $AZD_AZURE_AD_CLIENT_ID --password $AZD_AZURE_AD_CLIENT_SECRET --tenant $AZURE_AD_TENANT_ID
     - az account set --subscription $AZURE_SUBSCRIPTION_ID
     - export AZURE_CONTAINER_REGISTRY_ENDPOINT=$(az deployment group show --name registry --resource-group "rg-$AZURE_ENV_NAME" --query properties.outputs.loginServer.value -o tsv)
@@ -68,6 +69,7 @@ deploy:prod:
   before_script:
     - docker --version
     - docker info
+    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
     - az login --service-principal --username $AZD_AZURE_AD_CLIENT_ID --password $AZD_AZURE_AD_CLIENT_SECRET --tenant $AZURE_AD_TENANT_ID
     - az account set --subscription $AZURE_SUBSCRIPTION_ID
     - export AZURE_CONTAINER_REGISTRY_ENDPOINT=$(az deployment group show --name registry --resource-group "rg-$AZURE_ENV_NAME" --query properties.outputs.loginServer.value -o tsv)
