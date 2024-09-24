@@ -60,20 +60,6 @@ async def google_login(request: Request):
         if is_disabled:
             return admin_ui_disabled()
 
-    ####### Check if user is a Enterprise / Premium User #######
-    if (
-        microsoft_client_id is not None
-        or google_client_id is not None
-        or generic_client_id is not None
-    ):
-        if premium_user != True:
-            raise ProxyException(
-                message="You must be a LiteLLM Enterprise user to use SSO. If you have a license please set `LITELLM_LICENSE` in your env. If you want to obtain a license meet with us here: https://calendly.com/d/4mp-gd3-k5k/litellm-1-1-onboarding-chat You are seeing this error message because You set one of `MICROSOFT_CLIENT_ID`, `GOOGLE_CLIENT_ID`, or `GENERIC_CLIENT_ID` in your env. Please unset this",
-                type=ProxyErrorTypes.auth_error,
-                param="premium_user",
-                code=status.HTTP_403_FORBIDDEN,
-            )
-
     ####### Detect DB + MASTER KEY in .env #######
     missing_env_vars = show_missing_vars_in_env()
     if missing_env_vars is not None:
