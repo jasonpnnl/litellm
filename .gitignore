@@ -1,5 +1,7 @@
 .venv
 .env
+.newenv
+newenv/*
 litellm/proxy/myenv/*
 litellm_uuid.txt
 __pycache__/
@@ -63,3 +65,4 @@ litellm/tests/log.txt
 litellm/tests/langfuse.log
 litellm/tests/langfuse.log
 keys.txt
+litellm/proxy/google-cloud-sdk/*

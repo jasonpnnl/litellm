@@ -6,18 +6,19 @@ Currently only supports admin.
 JWT token must have 'litellm_proxy_admin' in scope. 
 """
 
-import jwt
 import json
 import os
-from litellm.caching import DualCache
-from litellm._logging import verbose_proxy_logger
-from litellm.proxy._types import LiteLLM_JWTAuth, LiteLLM_UserTable
-from litellm.proxy.utils import PrismaClient
-from litellm.llms.custom_httpx.httpx_handler import HTTPHandler
 from typing import Optional
+
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+
+from litellm._logging import verbose_proxy_logger
+from litellm.caching import DualCache
+from litellm.llms.custom_httpx.httpx_handler import HTTPHandler
+from litellm.proxy._types import LiteLLM_JWTAuth, LiteLLM_UserTable
+from litellm.proxy.utils import PrismaClient
 
 
 class JWTHandler:
@@ -77,6 +78,19 @@ class JWTHandler:
             return False
         return True
 
+    def is_enforced_email_domain(self) -> bool:
+        """
+        Returns:
+        - True: if 'user_allowed_email_domain' is set
+        - False: if 'user_allowed_email_domain' is None
+        """
+
+        if self.litellm_jwtauth.user_allowed_email_domain is not None and isinstance(
+            self.litellm_jwtauth.user_allowed_email_domain, str
+        ):
+            return True
+        return False
+
     def get_team_id(self, token: dict, default_value: Optional[str]) -> Optional[str]:
         try:
             if self.litellm_jwtauth.team_id_jwt_field is not None:
@@ -89,12 +103,14 @@ class JWTHandler:
             team_id = default_value
         return team_id
 
-    def is_upsert_user_id(self) -> bool:
+    def is_upsert_user_id(self, valid_user_email: Optional[bool] = None) -> bool:
         """
         Returns:
-        - True: if 'user_id_upsert' is set
+        - True: if 'user_id_upsert' is set AND valid_user_email is not False
         - False: if not
         """
+        if valid_user_email is False:
+            return False
         return self.litellm_jwtauth.user_id_upsert
 
     def get_user_id(self, token: dict, default_value: Optional[str]) -> Optional[str]:
@@ -102,10 +118,22 @@ class JWTHandler:
             if self.litellm_jwtauth.user_id_jwt_field is not None:
                 user_id = token[self.litellm_jwtauth.user_id_jwt_field]
             else:
-                user_id = None
+                user_id = default_value
         except KeyError:
             user_id = default_value
         return user_id
+
+    def get_user_email(
+        self, token: dict, default_value: Optional[str]
+    ) -> Optional[str]:
+        try:
+            if self.litellm_jwtauth.user_email_jwt_field is not None:
+                user_email = token[self.litellm_jwtauth.user_email_jwt_field]
+            else:
+                user_email = None
+        except KeyError:
+            user_email = default_value
+        return user_email
 
     def get_org_id(self, token: dict, default_value: Optional[str]) -> Optional[str]:
         try:
@@ -182,6 +210,16 @@ class JWTHandler:
 
         return public_key
 
+    def is_allowed_domain(self, user_email: str) -> bool:
+        if self.litellm_jwtauth.user_allowed_email_domain is None:
+            return True
+
+        email_domain = user_email.split("@")[-1]  # Extract domain from email
+        if email_domain == self.litellm_jwtauth.user_allowed_email_domain:
+            return True
+        else:
+            return False
+
     async def auth_jwt(self, token: str) -> dict:
         # Supported algos: https://pyjwt.readthedocs.io/en/stable/algorithms.html
         # "Warning: Make sure not to mix symmetric and asymmetric algorithms that interpret
@@ -193,6 +231,7 @@ class JWTHandler:
         if audience is None:
             decode_options = {"verify_aud": False}
 
+        import jwt
         from jwt.algorithms import RSAAlgorithm
 
         header = jwt.get_unverified_header(token)

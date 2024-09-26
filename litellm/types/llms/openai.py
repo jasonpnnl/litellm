@@ -1,17 +1,5 @@
 from os import PathLike
-from typing import (
-    IO,
-    Any,
-    BinaryIO,
-    Iterable,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    Tuple,
-    TypedDict,
-    Union,
-)
+from typing import IO, Any, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 
 from openai._legacy_response import HttpxBinaryResponseContent
 from openai.lib.streaming._assistants import (
@@ -30,8 +18,10 @@ from openai.types.beta.thread_create_params import (
 from openai.types.beta.threads.message import Message as OpenAIMessage
 from openai.types.beta.threads.message_content import MessageContent
 from openai.types.beta.threads.run import Run
-from pydantic import BaseModel
-from typing_extensions import Dict, Required, override
+from openai.types.chat import ChatCompletionChunk
+from openai.types.embedding import Embedding as OpenAIEmbedding
+from pydantic import BaseModel, Field
+from typing_extensions import Dict, Required, TypedDict, override
 
 FileContent = Union[IO[bytes], bytes, PathLike]
 
@@ -45,6 +35,9 @@ FileTypes = Union[
     # (filename, file (or bytes), content_type, headers)
     Tuple[Optional[str], FileContent, Optional[str], Mapping[str, str]],
 ]
+
+
+EmbeddingInput = Union[str, List[str]]
 
 
 class NotGiven:
@@ -257,7 +250,7 @@ class CreateBatchRequest(TypedDict, total=False):
     """
 
     completion_window: Literal["24h"]
-    endpoint: Literal["/v1/chat/completions", "/v1/embeddings"]
+    endpoint: Literal["/v1/chat/completions", "/v1/embeddings", "/v1/completions"]
     input_file_id: str
     metadata: Optional[Dict[str, str]]
     extra_headers: Optional[Dict[str, str]]
@@ -325,9 +318,19 @@ class ChatCompletionDeltaToolCallChunk(TypedDict, total=False):
     index: int
 
 
-class ChatCompletionTextObject(TypedDict):
+class ChatCompletionCachedContent(TypedDict):
+    type: Literal["ephemeral"]
+
+
+class OpenAIChatCompletionTextObject(TypedDict):
     type: Literal["text"]
     text: str
+
+
+class ChatCompletionTextObject(
+    OpenAIChatCompletionTextObject, total=False
+):  # litellm wrapper on top of openai object for handling cached content
+    cache_control: ChatCompletionCachedContent
 
 
 class ChatCompletionImageUrlObject(TypedDict, total=False):
@@ -337,33 +340,53 @@ class ChatCompletionImageUrlObject(TypedDict, total=False):
 
 class ChatCompletionImageObject(TypedDict):
     type: Literal["image_url"]
-    image_url: ChatCompletionImageUrlObject
+    image_url: Union[str, ChatCompletionImageUrlObject]
 
 
-class ChatCompletionUserMessage(TypedDict):
+class OpenAIChatCompletionUserMessage(TypedDict):
     role: Literal["user"]
     content: Union[
         str, Iterable[Union[ChatCompletionTextObject, ChatCompletionImageObject]]
     ]
 
 
-class ChatCompletionAssistantMessage(TypedDict, total=False):
+class ChatCompletionUserMessage(OpenAIChatCompletionUserMessage, total=False):
+    cache_control: ChatCompletionCachedContent
+
+
+class OpenAIChatCompletionAssistantMessage(TypedDict, total=False):
     role: Required[Literal["assistant"]]
-    content: Optional[str]
-    name: str
-    tool_calls: List[ChatCompletionAssistantToolCall]
+    content: Optional[Union[str, Iterable[ChatCompletionTextObject]]]
+    name: Optional[str]
+    tool_calls: Optional[List[ChatCompletionAssistantToolCall]]
+    function_call: Optional[ChatCompletionToolCallFunctionChunk]
+
+
+class ChatCompletionAssistantMessage(OpenAIChatCompletionAssistantMessage, total=False):
+    cache_control: ChatCompletionCachedContent
 
 
 class ChatCompletionToolMessage(TypedDict):
     role: Literal["tool"]
-    content: str
+    content: Union[str, Iterable[ChatCompletionTextObject]]
     tool_call_id: str
 
 
-class ChatCompletionSystemMessage(TypedDict, total=False):
-    role: Required[Literal["system"]]
-    content: Required[str]
+class ChatCompletionFunctionMessage(TypedDict):
+    role: Literal["function"]
+    content: Optional[Union[str, Iterable[ChatCompletionTextObject]]]
     name: str
+    tool_call_id: Optional[str]
+
+
+class OpenAIChatCompletionSystemMessage(TypedDict, total=False):
+    role: Required[Literal["system"]]
+    content: Required[Union[str, List]]
+    name: str
+
+
+class ChatCompletionSystemMessage(OpenAIChatCompletionSystemMessage, total=False):
+    cache_control: ChatCompletionCachedContent
 
 
 AllMessageValues = Union[
@@ -371,6 +394,7 @@ AllMessageValues = Union[
     ChatCompletionAssistantMessage,
     ChatCompletionToolMessage,
     ChatCompletionSystemMessage,
+    ChatCompletionFunctionMessage,
 ]
 
 
@@ -401,6 +425,18 @@ class ChatCompletionToolParam(TypedDict):
     function: ChatCompletionToolParamFunctionChunk
 
 
+class Function(TypedDict, total=False):
+    name: Required[str]
+    """The name of the function to call."""
+
+
+class ChatCompletionNamedToolChoiceParam(TypedDict, total=False):
+    function: Required[Function]
+
+    type: Required[Literal["function"]]
+    """The type of the tool. Currently, only `function` is supported."""
+
+
 class ChatCompletionRequest(TypedDict, total=False):
     model: Required[str]
     messages: Required[List[AllMessageValues]]
@@ -424,6 +460,7 @@ class ChatCompletionRequest(TypedDict, total=False):
     function_call: Union[str, dict]
     functions: List
     user: str
+    metadata: dict  # litellm specific param
 
 
 class ChatCompletionDeltaChunk(TypedDict, total=False):
@@ -436,9 +473,70 @@ class ChatCompletionResponseMessage(TypedDict, total=False):
     content: Optional[str]
     tool_calls: List[ChatCompletionToolCallChunk]
     role: Literal["assistant"]
+    function_call: ChatCompletionToolCallFunctionChunk
 
 
 class ChatCompletionUsageBlock(TypedDict):
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+
+
+class OpenAIChatCompletionChunk(ChatCompletionChunk):
+    def __init__(self, **kwargs):
+        # Set the 'object' kwarg to 'chat.completion.chunk'
+        kwargs["object"] = "chat.completion.chunk"
+        super().__init__(**kwargs)
+
+
+class Hyperparameters(BaseModel):
+    batch_size: Optional[Union[str, int]] = None  # "Number of examples in each batch."
+    learning_rate_multiplier: Optional[Union[str, float]] = (
+        None  # Scaling factor for the learning rate
+    )
+    n_epochs: Optional[Union[str, int]] = (
+        None  # "The number of epochs to train the model for"
+    )
+
+
+class FineTuningJobCreate(BaseModel):
+    """
+    FineTuningJobCreate - Create a fine-tuning job
+
+    Example Request
+    ```
+    {
+        "model": "gpt-3.5-turbo",
+        "training_file": "file-abc123",
+        "hyperparameters": {
+            "batch_size": "auto",
+            "learning_rate_multiplier": 0.1,
+            "n_epochs": 3
+        },
+        "suffix": "custom-model-name",
+        "validation_file": "file-xyz789",
+        "integrations": ["slack"],
+        "seed": 42
+    }
+    ```
+    """
+
+    model: str  # "The name of the model to fine-tune."
+    training_file: str  # "The ID of an uploaded file that contains training data."
+    hyperparameters: Optional[Hyperparameters] = (
+        None  # "The hyperparameters used for the fine-tuning job."
+    )
+    suffix: Optional[str] = (
+        None  # "A string of up to 18 characters that will be added to your fine-tuned model name."
+    )
+    validation_file: Optional[str] = (
+        None  # "The ID of an uploaded file that contains validation data."
+    )
+    integrations: Optional[List[str]] = (
+        None  # "A list of integrations to enable for your fine-tuning job."
+    )
+    seed: Optional[int] = None  # "The seed controls the reproducibility of the job."
+
+
+class LiteLLMFineTuningJobCreate(FineTuningJobCreate):
+    custom_llm_provider: Literal["openai", "azure", "vertex_ai"]

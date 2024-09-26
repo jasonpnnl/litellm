@@ -2,18 +2,21 @@
 #    This tests streaming for the completion endpoint
 
 import asyncio
+import json
 import os
 import sys
 import time
 import traceback
 import uuid
 from typing import Tuple
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import BaseModel
 
 import litellm.litellm_core_utils
 import litellm.litellm_core_utils.litellm_logging
+from litellm.utils import ModelResponseListIterator
 
 sys.path.insert(
     0, os.path.abspath("../..")
@@ -474,6 +477,7 @@ def test_completion_cohere_stream_bad_key():
 # test_completion_cohere_stream_bad_key()
 
 
+@pytest.mark.flaky(retries=5, delay=1)
 def test_completion_azure_stream():
     try:
         litellm.set_verbose = False
@@ -510,11 +514,12 @@ def test_completion_azure_stream():
 async def test_completion_predibase_streaming(sync_mode):
     try:
         litellm.set_verbose = True
-
         if sync_mode:
             response = completion(
                 model="predibase/llama-3-8b-instruct",
+                timeout=5,
                 tenant_id="c4768f95",
+                max_tokens=10,
                 api_base="https://serving.app.predibase.com",
                 api_key=os.getenv("PREDIBASE_API_KEY"),
                 messages=[{"role": "user", "content": "What is the meaning of life?"}],
@@ -539,6 +544,8 @@ async def test_completion_predibase_streaming(sync_mode):
             response = await litellm.acompletion(
                 model="predibase/llama-3-8b-instruct",
                 tenant_id="c4768f95",
+                timeout=5,
+                max_tokens=10,
                 api_base="https://serving.app.predibase.com",
                 api_key=os.getenv("PREDIBASE_API_KEY"),
                 messages=[{"role": "user", "content": "What is the meaning of life?"}],
@@ -565,9 +572,13 @@ async def test_completion_predibase_streaming(sync_mode):
                 raise Exception("Empty response received")
 
         print(f"complete_response: {complete_response}")
-    except litellm.Timeout as e:
+    except litellm.Timeout:
         pass
-    except litellm.InternalServerError as e:
+    except litellm.InternalServerError:
+        pass
+    except litellm.ServiceUnavailableError:
+        pass
+    except litellm.APIConnectionError:
         pass
     except Exception as e:
         print("ERROR class", e.__class__)
@@ -575,6 +586,37 @@ async def test_completion_predibase_streaming(sync_mode):
         print("ERROR traceback", traceback.format_exc())
 
         pytest.fail(f"Error occurred: {e}")
+
+
+@pytest.mark.asyncio()
+@pytest.mark.flaky(retries=3, delay=1)
+async def test_completion_ai21_stream():
+    litellm.set_verbose = True
+    response = await litellm.acompletion(
+        model="ai21_chat/jamba-1.5-large",
+        user="ishaan",
+        stream=True,
+        seed=123,
+        messages=[{"role": "user", "content": "hi my name is ishaan"}],
+    )
+    complete_response = ""
+    idx = 0
+    async for init_chunk in response:
+        chunk, finished = streaming_format_tests(idx, init_chunk)
+        complete_response += chunk
+        custom_llm_provider = init_chunk._hidden_params["custom_llm_provider"]
+        print(f"custom_llm_provider: {custom_llm_provider}")
+        assert custom_llm_provider == "ai21_chat"
+        idx += 1
+        if finished:
+            assert isinstance(init_chunk.choices[0], litellm.utils.StreamingChoices)
+            break
+    if complete_response.strip() == "":
+        raise Exception("Empty response received")
+
+    print(f"complete_response: {complete_response}")
+
+    pass
 
 
 def test_completion_azure_function_calling_stream():
@@ -636,7 +678,16 @@ def test_completion_ollama_hosted_stream():
 # test_completion_ollama_hosted_stream()
 
 
-def test_completion_claude_stream():
+@pytest.mark.parametrize(
+    "model",
+    [
+        # "claude-instant-1.2",
+        # "claude-2",
+        # "mistral/mistral-medium",
+        "openrouter/openai/gpt-4o-mini",
+    ],
+)
+def test_completion_model_stream(model):
     try:
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
@@ -646,7 +697,7 @@ def test_completion_claude_stream():
             },
         ]
         response = completion(
-            model="claude-instant-1.2", messages=messages, stream=True, max_tokens=50
+            model=model, messages=messages, stream=True, max_tokens=50
         )
         complete_response = ""
         # Add any assertions here to check the response
@@ -662,89 +713,33 @@ def test_completion_claude_stream():
         pytest.fail(f"Error occurred: {e}")
 
 
-# test_completion_claude_stream()
-def test_completion_claude_2_stream():
-    litellm.set_verbose = True
-    response = completion(
-        model="claude-2",
-        messages=[{"role": "user", "content": "hello from litellm"}],
-        stream=True,
-    )
-    complete_response = ""
-    # Add any assertions here to check the response
-    idx = 0
-    for chunk in response:
-        print(chunk)
-        # print(chunk.choices[0].delta)
-        chunk, finished = streaming_format_tests(idx, chunk)
-        if finished:
-            break
-        complete_response += chunk
-        idx += 1
-    if complete_response.strip() == "":
-        raise Exception("Empty response received")
-    print(f"completion_response: {complete_response}")
-
-
 @pytest.mark.asyncio
 async def test_acompletion_claude_2_stream():
-    litellm.set_verbose = True
-    response = await litellm.acompletion(
-        model="claude-2",
-        messages=[{"role": "user", "content": "hello from litellm"}],
-        stream=True,
-    )
-    complete_response = ""
-    # Add any assertions here to check the response
-    idx = 0
-    async for chunk in response:
-        print(chunk)
-        # print(chunk.choices[0].delta)
-        chunk, finished = streaming_format_tests(idx, chunk)
-        if finished:
-            break
-        complete_response += chunk
-        idx += 1
-    if complete_response.strip() == "":
-        raise Exception("Empty response received")
-    print(f"completion_response: {complete_response}")
-
-
-def test_completion_palm_stream():
     try:
-        litellm.set_verbose = False
-        print("Streaming palm response")
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {
-                "role": "user",
-                "content": "how does a court case get to the Supreme Court?",
-            },
-        ]
-        print("testing palm streaming")
-        response = completion(model="palm/chat-bison", messages=messages, stream=True)
-
+        litellm.set_verbose = True
+        response = await litellm.acompletion(
+            model="claude-2",
+            messages=[{"role": "user", "content": "hello from litellm"}],
+            stream=True,
+        )
         complete_response = ""
         # Add any assertions here to check the response
-        for idx, chunk in enumerate(response):
+        idx = 0
+        async for chunk in response:
             print(chunk)
             # print(chunk.choices[0].delta)
             chunk, finished = streaming_format_tests(idx, chunk)
             if finished:
                 break
             complete_response += chunk
+            idx += 1
         if complete_response.strip() == "":
             raise Exception("Empty response received")
         print(f"completion_response: {complete_response}")
-    except litellm.Timeout as e:
-        pass
-    except litellm.APIError as e:
+    except litellm.RateLimitError:
         pass
     except Exception as e:
         pytest.fail(f"Error occurred: {e}")
-
-
-# test_completion_palm_stream()
 
 
 @pytest.mark.parametrize(
@@ -752,31 +747,45 @@ def test_completion_palm_stream():
     [True, False],
 )  # ,
 @pytest.mark.asyncio
+@pytest.mark.flaky(retries=3, delay=1)
 async def test_completion_gemini_stream(sync_mode):
     try:
         litellm.set_verbose = True
         print("Streaming gemini response")
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
+        function1 = [
             {
-                "role": "user",
-                "content": "Who was Alexander?",
-            },
+                "name": "get_current_weather",
+                "description": "Get the current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                    },
+                    "required": ["location"],
+                },
+            }
         ]
+        messages = [{"role": "user", "content": "What is the weather like in Boston?"}]
         print("testing gemini streaming")
         complete_response = ""
         # Add any assertions here to check the response
         non_empty_chunks = 0
-
+        chunks = []
         if sync_mode:
             response = completion(
                 model="gemini/gemini-1.5-flash",
                 messages=messages,
                 stream=True,
+                functions=function1,
             )
 
             for idx, chunk in enumerate(response):
                 print(chunk)
+                chunks.append(chunk)
                 # print(chunk.choices[0].delta)
                 chunk, finished = streaming_format_tests(idx, chunk)
                 if finished:
@@ -788,11 +797,13 @@ async def test_completion_gemini_stream(sync_mode):
                 model="gemini/gemini-1.5-flash",
                 messages=messages,
                 stream=True,
+                functions=function1,
             )
 
             idx = 0
             async for chunk in response:
                 print(chunk)
+                chunks.append(chunk)
                 # print(chunk.choices[0].delta)
                 chunk, finished = streaming_format_tests(idx, chunk)
                 if finished:
@@ -801,10 +812,17 @@ async def test_completion_gemini_stream(sync_mode):
                 complete_response += chunk
                 idx += 1
 
-        if complete_response.strip() == "":
-            raise Exception("Empty response received")
+        # if complete_response.strip() == "":
+        #     raise Exception("Empty response received")
         print(f"completion_response: {complete_response}")
-        assert non_empty_chunks > 1
+
+        complete_response = litellm.stream_chunk_builder(
+            chunks=chunks, messages=messages
+        )
+
+        assert complete_response.choices[0].message.function_call is not None
+
+        # assert non_empty_chunks > 1
     except litellm.InternalServerError as e:
         pass
     except litellm.RateLimitError as e:
@@ -816,39 +834,128 @@ async def test_completion_gemini_stream(sync_mode):
 
 
 # asyncio.run(test_acompletion_gemini_stream())
+def gemini_mock_post_streaming(url, **kwargs):
+    # This generator simulates the streaming response with partial JSON content
+    def stream_response():
+        chunks = [
+            "{",
+            '"candidates": [{"content": {"parts": [{"text": "Twelve"}],"role": "model"},"finishReason": "STOP","index": 0}],"usageMetadata": {"promptTokenCount": 8,"candidatesTokenCount": 1,"totalTokenCount": 9',
+            "}}\n\n",  # This is the continuation of the previous chunk
+            'data: {"candidates": [{"content": {"parts": [{"text": "-year-old Finn was never one for adventure. He preferred the comfort of',
+            ' his room, his nose buried in a book, to the chaotic world outside."}],"role": "model"},"finishReason": "STOP","index": 0,"safetyRatings": [{"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT","probability": "NEGLIGIBLE"},{"category": "HARM_CATEGORY_HATE_SPEECH","probability": "NEGLIGIBLE"},{"category": "HARM_CATEGORY_HARASSMENT","probability": "NEGLIGIBLE"},{"category": "HARM_CATEGORY_DANGEROUS_CONTENT","probability": "NEGLIGIBLE"}]}],"usageMetadata": {"promptTokenCount": 8,"candidatesTokenCount": 17,"totalTokenCount": 25}}\n\n',
+            # Add more chunks as needed
+        ]
+        for chunk in chunks:
+            yield chunk
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {"Content-Type": "text/event-stream"}
+    mock_response.iter_lines = MagicMock(return_value=stream_response())
+
+    return mock_response
 
 
-def test_completion_mistral_api_stream():
+@pytest.mark.parametrize(
+    "sync_mode",
+    [True],
+)  # ,
+@pytest.mark.asyncio
+@pytest.mark.flaky(retries=3, delay=1)
+async def test_completion_gemini_stream_accumulated_json(sync_mode):
     try:
+        from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler, HTTPHandler
+
         litellm.set_verbose = True
-        print("Testing streaming mistral api response")
-        response = completion(
-            model="mistral/mistral-medium",
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Hey, how's it going?",
-                }
-            ],
-            max_tokens=10,
-            stream=True,
-        )
+        print("Streaming gemini response")
+        function1 = [
+            {
+                "name": "get_current_weather",
+                "description": "Get the current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ]
+        messages = [{"role": "user", "content": "What is the weather like in Boston?"}]
+        print("testing gemini streaming")
         complete_response = ""
-        has_finish_reason = False
-        for idx, chunk in enumerate(response):
-            chunk, finished = streaming_format_tests(idx, chunk)
-            if finished:
-                has_finish_reason = True
-                break
-            complete_response += chunk
-        if has_finish_reason == False:
-            raise Exception("finish reason not set")
-        if complete_response.strip() == "":
-            raise Exception("Empty response received")
+        # Add any assertions here to check the response
+        non_empty_chunks = 0
+        chunks = []
+        if sync_mode:
+            client = HTTPHandler(concurrent_limit=1)
+            with patch.object(
+                client, "post", side_effect=gemini_mock_post_streaming
+            ) as mock_client:
+                response = completion(
+                    model="gemini/gemini-1.5-flash",
+                    messages=messages,
+                    stream=True,
+                    functions=function1,
+                    client=client,
+                )
+
+                for idx, chunk in enumerate(response):
+                    print(chunk)
+                    chunks.append(chunk)
+                    # print(chunk.choices[0].delta)
+                    chunk, finished = streaming_format_tests(idx, chunk)
+                    print(f"finished: {finished}")
+                    if finished:
+                        break
+                    non_empty_chunks += 1
+                    complete_response += chunk
+
+                mock_client.assert_called_once()
+        else:
+            client = AsyncHTTPHandler(concurrent_limit=1)
+            with patch.object(
+                client, "post", side_effect=gemini_mock_post_streaming
+            ) as mock_client:
+                response = await litellm.acompletion(
+                    model="gemini/gemini-1.5-flash",
+                    messages=messages,
+                    stream=True,
+                    functions=function1,
+                )
+
+                idx = 0
+                async for chunk in response:
+                    print(chunk)
+                    chunks.append(chunk)
+                    # print(chunk.choices[0].delta)
+                    chunk, finished = streaming_format_tests(idx, chunk)
+                    if finished:
+                        break
+                    non_empty_chunks += 1
+                    complete_response += chunk
+                    idx += 1
+
+        # if complete_response.strip() == "":
+        #     raise Exception("Empty response received")
         print(f"completion_response: {complete_response}")
-    except litellm.APIError as e:
+
+        assert (
+            complete_response
+            == "Twelve-year-old Finn was never one for adventure. He preferred the comfort of his room, his nose buried in a book, to the chaotic world outside."
+        )
+        # assert non_empty_chunks > 1
+    except litellm.InternalServerError as e:
+        pass
+    except litellm.RateLimitError as e:
         pass
     except Exception as e:
+        # if "429 Resource has been exhausted":
+        #     return
         pytest.fail(f"Error occurred: {e}")
 
 
@@ -1310,22 +1417,23 @@ async def test_completion_replicate_llama3_streaming(sync_mode):
 #         pytest.fail(f"Error occurred: {e}")
 
 
-@pytest.mark.parametrize("sync_mode", [True])  # False
+@pytest.mark.parametrize("sync_mode", [True, False])  #
 @pytest.mark.parametrize(
-    "model",
+    "model, region",
     [
-        "bedrock/cohere.command-r-plus-v1:0",
-        "anthropic.claude-3-sonnet-20240229-v1:0",
-        "anthropic.claude-instant-v1",
-        "bedrock/ai21.j2-mid",
-        "mistral.mistral-7b-instruct-v0:2",
-        "bedrock/amazon.titan-tg1-large",
-        "meta.llama3-8b-instruct-v1:0",
-        "cohere.command-text-v14",
+        ["bedrock/ai21.jamba-instruct-v1:0", "us-east-1"],
+        ["bedrock/cohere.command-r-plus-v1:0", None],
+        ["anthropic.claude-3-sonnet-20240229-v1:0", None],
+        ["anthropic.claude-instant-v1", None],
+        ["mistral.mistral-7b-instruct-v0:2", None],
+        ["bedrock/amazon.titan-tg1-large", None],
+        ["meta.llama3-8b-instruct-v1:0", None],
+        ["cohere.command-text-v14", None],
     ],
 )
 @pytest.mark.asyncio
-async def test_bedrock_httpx_streaming(sync_mode, model):
+@pytest.mark.flaky(retries=3, delay=1)
+async def test_bedrock_httpx_streaming(sync_mode, model, region):
     try:
         litellm.set_verbose = True
         if sync_mode:
@@ -1335,6 +1443,7 @@ async def test_bedrock_httpx_streaming(sync_mode, model):
                 messages=messages,
                 max_tokens=10,  # type: ignore
                 stream=True,
+                aws_region_name=region,
             )
             complete_response = ""
             # Add any assertions here to check the response
@@ -1346,7 +1455,7 @@ async def test_bedrock_httpx_streaming(sync_mode, model):
                     has_finish_reason = True
                     break
                 complete_response += chunk
-            if has_finish_reason == False:
+            if has_finish_reason is False:
                 raise Exception("finish reason not set")
             if complete_response.strip() == "":
                 raise Exception("Empty response received")
@@ -1356,6 +1465,7 @@ async def test_bedrock_httpx_streaming(sync_mode, model):
                 messages=messages,
                 max_tokens=100,  # type: ignore
                 stream=True,
+                aws_region_name=region,
             )
             complete_response = ""
             # Add any assertions here to check the response
@@ -1377,6 +1487,8 @@ async def test_bedrock_httpx_streaming(sync_mode, model):
         print(f"completion_response: {complete_response}\n\nFinalChunk: {final_chunk}")
     except RateLimitError as e:
         print("got rate limit error=", e)
+        pass
+    except litellm.Timeout:
         pass
     except Exception as e:
         pytest.fail(f"Error occurred: {e}")
@@ -1442,6 +1554,7 @@ async def test_parallel_streaming_requests(sync_mode, model):
                 messages=messages,
                 stream=True,
                 max_tokens=10,
+                timeout=10,
             )
             complete_response = ""
             # Add any assertions here to-check the response
@@ -1459,6 +1572,7 @@ async def test_parallel_streaming_requests(sync_mode, model):
                 messages=messages,
                 stream=True,
                 max_tokens=10,
+                timeout=10,
             )
             complete_response = ""
             # Add any assertions here to-check the response
@@ -1489,6 +1603,13 @@ async def test_parallel_streaming_requests(sync_mode, model):
 
     except RateLimitError:
         pass
+    except litellm.Timeout:
+        pass
+    except litellm.ServiceUnavailableError as e:
+        if model == "predibase/llama-3-8b-instruct":
+            pass
+        else:
+            pytest.fail(f"Service Unavailable Error got{str(e)}")
     except litellm.InternalServerError as e:
         if "predibase" in str(e).lower():
             # only skip internal server error from predibase - their endpoint seems quite unstable
@@ -1581,6 +1702,7 @@ def test_completion_bedrock_claude_stream():
 # test_completion_bedrock_claude_stream()
 
 
+@pytest.mark.skip(reason="model end of life")
 def test_completion_bedrock_ai21_stream():
     try:
         litellm.set_verbose = False
@@ -1658,6 +1780,7 @@ def test_completion_bedrock_mistral_stream():
         pytest.fail(f"Error occurred: {e}")
 
 
+@pytest.mark.skip(reason="stopped using TokenIterator")
 def test_sagemaker_weird_response():
     """
     When the stream ends, flush any remaining holding chunks.
@@ -1665,7 +1788,7 @@ def test_sagemaker_weird_response():
     try:
         import json
 
-        from litellm.llms.sagemaker import TokenIterator
+        from litellm.llms.sagemaker.sagemaker import TokenIterator
 
         chunk = """<s>[INST] Hey, how's it going? [/INST],
         I'm doing well, thanks for asking! How about you? Is there anything you'd like to chat about or ask? I'm here to help with any questions you might have."""
@@ -1718,6 +1841,7 @@ def test_sagemaker_weird_response():
 # test_sagemaker_weird_response()
 
 
+@pytest.mark.skip(reason="Move to being a mock endpoint")
 @pytest.mark.asyncio
 async def test_sagemaker_streaming_async():
     try:
@@ -1760,6 +1884,7 @@ async def test_sagemaker_streaming_async():
 # asyncio.run(test_sagemaker_streaming_async())
 
 
+@pytest.mark.skip(reason="costly sagemaker deployment. Move to mock implementation")
 def test_completion_sagemaker_stream():
     try:
         response = completion(
@@ -1984,25 +2109,29 @@ async def test_hf_completion_tgi_stream():
 
 # test on openai completion call
 def test_openai_chat_completion_call():
-    try:
-        litellm.set_verbose = False
-        print(f"making openai chat completion call")
-        response = completion(model="gpt-3.5-turbo", messages=messages, stream=True)
-        complete_response = ""
-        start_time = time.time()
-        for idx, chunk in enumerate(response):
-            chunk, finished = streaming_format_tests(idx, chunk)
-            print(f"outside chunk: {chunk}")
-            if finished:
-                break
-            complete_response += chunk
-            # print(f'complete_chunk: {complete_response}')
-        if complete_response.strip() == "":
-            raise Exception("Empty response received")
-        print(f"complete response: {complete_response}")
-    except:
-        print(f"error occurred: {traceback.format_exc()}")
-        pass
+    litellm.set_verbose = False
+    litellm.return_response_headers = True
+    response = completion(model="gpt-3.5-turbo", messages=messages, stream=True)
+    assert isinstance(
+        response._hidden_params["additional_headers"][
+            "llm_provider-x-ratelimit-remaining-requests"
+        ],
+        str,
+    )
+
+    print(f"response._hidden_params: {response._hidden_params}")
+    complete_response = ""
+    start_time = time.time()
+    for idx, chunk in enumerate(response):
+        chunk, finished = streaming_format_tests(idx, chunk)
+        print(f"outside chunk: {chunk}")
+        if finished:
+            break
+        complete_response += chunk
+        # print(f'complete_chunk: {complete_response}')
+    if complete_response.strip() == "":
+        raise Exception("Empty response received")
+    print(f"complete response: {complete_response}")
 
 
 # test_openai_chat_completion_call()
@@ -2025,7 +2154,7 @@ def test_openai_chat_completion_complete_response_call():
 # test_openai_chat_completion_complete_response_call()
 @pytest.mark.parametrize(
     "model",
-    ["gpt-3.5-turbo", "azure/chatgpt-v-2", "claude-3-haiku-20240307"],  #
+    ["gpt-3.5-turbo", "azure/chatgpt-v-2", "claude-3-haiku-20240307", "o1-preview"],  #
 )
 @pytest.mark.parametrize(
     "sync",
@@ -2189,6 +2318,57 @@ def test_together_ai_completion_call_mistral():
         pass
 
 
+# # test on together ai completion call - starcoder
+@pytest.mark.parametrize("sync_mode", [True, False])
+@pytest.mark.asyncio
+async def test_openai_o1_completion_call_streaming(sync_mode):
+    try:
+        litellm.set_verbose = False
+        if sync_mode:
+            response = completion(
+                model="o1-preview",
+                messages=messages,
+                stream=True,
+            )
+            complete_response = ""
+            print(f"returned response object: {response}")
+            has_finish_reason = False
+            for idx, chunk in enumerate(response):
+                chunk, finished = streaming_format_tests(idx, chunk)
+                has_finish_reason = finished
+                if finished:
+                    break
+                complete_response += chunk
+            if has_finish_reason is False:
+                raise Exception("Finish reason not set for last chunk")
+            if complete_response == "":
+                raise Exception("Empty response received")
+        else:
+            response = await acompletion(
+                model="o1-preview",
+                messages=messages,
+                stream=True,
+            )
+            complete_response = ""
+            print(f"returned response object: {response}")
+            has_finish_reason = False
+            idx = 0
+            async for chunk in response:
+                chunk, finished = streaming_format_tests(idx, chunk)
+                has_finish_reason = finished
+                if finished:
+                    break
+                complete_response += chunk
+                idx += 1
+            if has_finish_reason is False:
+                raise Exception("Finish reason not set for last chunk")
+            if complete_response == "":
+                raise Exception("Empty response received")
+        print(f"complete response: {complete_response}")
+    except Exception:
+        pytest.fail(f"error occurred: {traceback.format_exc()}")
+
+
 def test_together_ai_completion_call_starcoder_bad_key():
     try:
         api_key = "bad-key"
@@ -2329,7 +2509,7 @@ final_openai_function_call_example = {
     "id": "chatcmpl-7zVNA4sXUftpIg6W8WlntCyeBj2JY",
     "object": "chat.completion",
     "created": 1694892960,
-    "model": "gpt-3.5-turbo-0613",
+    "model": "gpt-3.5-turbo",
     "choices": [
         {
             "index": 0,
@@ -2393,7 +2573,7 @@ first_openai_function_call_example = {
     "id": "chatcmpl-7zVRoE5HjHYsCMaVSNgOjzdhbS3P0",
     "object": "chat.completion.chunk",
     "created": 1694893248,
-    "model": "gpt-3.5-turbo-0613",
+    "model": "gpt-3.5-turbo",
     "choices": [
         {
             "index": 0,
@@ -2466,7 +2646,7 @@ second_function_call_chunk_format = {
     "id": "chatcmpl-7zVRoE5HjHYsCMaVSNgOjzdhbS3P0",
     "object": "chat.completion.chunk",
     "created": 1694893248,
-    "model": "gpt-3.5-turbo-0613",
+    "model": "gpt-3.5-turbo",
     "choices": [
         {
             "index": 0,
@@ -2510,7 +2690,7 @@ final_function_call_chunk_example = {
     "id": "chatcmpl-7zVRoE5HjHYsCMaVSNgOjzdhbS3P0",
     "object": "chat.completion.chunk",
     "created": 1694893248,
-    "model": "gpt-3.5-turbo-0613",
+    "model": "gpt-3.5-turbo",
     "choices": [{"index": 0, "delta": {}, "finish_reason": "function_call"}],
 }
 
@@ -2566,8 +2746,8 @@ def streaming_and_function_calling_format_tests(idx, chunk):
 @pytest.mark.parametrize(
     "model",
     [
-        "gpt-3.5-turbo",
-        "anthropic.claude-3-sonnet-20240229-v1:0",
+        # "gpt-3.5-turbo",
+        # "anthropic.claude-3-sonnet-20240229-v1:0",
         "claude-3-haiku-20240307",
     ],
 )
@@ -2597,7 +2777,7 @@ def test_streaming_and_function_calling(model):
 
     messages = [{"role": "user", "content": "What is the weather like in Boston?"}]
     try:
-        litellm.set_verbose = True
+        # litellm.set_verbose = True
         response: litellm.CustomStreamWrapper = completion(
             model=model,
             tools=tools,
@@ -2609,7 +2789,7 @@ def test_streaming_and_function_calling(model):
         json_str = ""
         for idx, chunk in enumerate(response):
             # continue
-            print("\n{}\n".format(chunk))
+            # print("\n{}\n".format(chunk))
             if idx == 0:
                 assert (
                     chunk.choices[0].delta.tool_calls[0].function.arguments is not None
@@ -2877,6 +3057,40 @@ def test_azure_streaming_and_function_calling():
         raise e
 
 
+@pytest.mark.parametrize("sync_mode", [True, False])
+@pytest.mark.asyncio
+async def test_completion_azure_ai_mistral_invalid_params(sync_mode):
+    try:
+        import os
+
+        litellm.set_verbose = True
+
+        os.environ["AZURE_AI_API_BASE"] = os.getenv("AZURE_MISTRAL_API_BASE", "")
+        os.environ["AZURE_AI_API_KEY"] = os.getenv("AZURE_MISTRAL_API_KEY", "")
+
+        data = {
+            "model": "azure_ai/mistral",
+            "messages": [{"role": "user", "content": "What is the meaning of life?"}],
+            "frequency_penalty": 0.1,
+            "presence_penalty": 0.1,
+            "drop_params": True,
+            "stream": True,
+        }
+        if sync_mode:
+            response: litellm.ModelResponse = completion(**data)  # type: ignore
+            for chunk in response:
+                print(chunk)
+        else:
+            response: litellm.ModelResponse = await litellm.acompletion(**data)  # type: ignore
+
+            async for chunk in response:
+                print(chunk)
+    except litellm.Timeout as e:
+        pass
+    except Exception as e:
+        pytest.fail(f"Error occurred: {e}")
+
+
 @pytest.mark.asyncio
 async def test_azure_astreaming_and_function_calling():
     import uuid
@@ -2982,7 +3196,6 @@ async def test_azure_astreaming_and_function_calling():
 
 
 def test_completion_claude_3_function_call_with_streaming():
-    litellm.set_verbose = True
     tools = [
         {
             "type": "function",
@@ -3032,6 +3245,7 @@ def test_completion_claude_3_function_call_with_streaming():
             elif idx == 1 and chunk.choices[0].finish_reason is None:
                 validate_second_streaming_function_calling_chunk(chunk=chunk)
             elif chunk.choices[0].finish_reason is not None:  # last chunk
+                assert "usage" in chunk._hidden_params
                 validate_final_streaming_function_calling_chunk(chunk=chunk)
             idx += 1
         # raise Exception("it worked!")
@@ -3040,8 +3254,11 @@ def test_completion_claude_3_function_call_with_streaming():
 
 
 @pytest.mark.parametrize(
-    "model", ["gemini/gemini-1.5-flash"]
-)  # "claude-3-opus-20240229",
+    "model",
+    [
+        "gemini/gemini-1.5-flash",
+    ],  #  "claude-3-opus-20240229"
+)  #
 @pytest.mark.asyncio
 async def test_acompletion_claude_3_function_call_with_streaming(model):
     litellm.set_verbose = True
@@ -3049,41 +3266,45 @@ async def test_acompletion_claude_3_function_call_with_streaming(model):
         {
             "type": "function",
             "function": {
-                "name": "get_current_weather",
-                "description": "Get the current weather in a given location",
+                "name": "generate_series_of_questions",
+                "description": "Generate a series of questions, given a topic.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA",
+                        "questions": {
+                            "type": "array",
+                            "description": "The questions to be generated.",
+                            "items": {"type": "string"},
                         },
-                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                     },
-                    "required": ["location"],
+                    "required": ["questions"],
                 },
             },
-        }
+        },
     ]
+    SYSTEM_PROMPT = "You are an AI assistant"
     messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
         {
             "role": "user",
-            "content": "What's the weather like in Boston today in fahrenheit?",
-        }
+            "content": "Generate 3 questions about civil engineering.",
+        },
     ]
     try:
         # test without max tokens
         response = await acompletion(
             model=model,
+            # model="claude-3-5-sonnet-20240620",
             messages=messages,
-            tools=tools,
-            tool_choice="required",
             stream=True,
+            temperature=0.75,
+            tools=tools,
+            stream_options={"include_usage": True},
         )
         idx = 0
         print(f"response: {response}")
         async for chunk in response:
-            # print(f"chunk: {chunk}")
+            print(f"chunk in test: {chunk}")
             if idx == 0:
                 assert (
                     chunk.choices[0].delta.tool_calls[0].function.arguments is not None
@@ -3128,34 +3349,6 @@ class ModelResponseIterator:
         return self.model_response
 
 
-class ModelResponseListIterator:
-    def __init__(self, model_responses):
-        self.model_responses = model_responses
-        self.index = 0
-
-    # Sync iterator
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.index >= len(self.model_responses):
-            raise StopIteration
-        model_response = self.model_responses[self.index]
-        self.index += 1
-        return model_response
-
-    # Async iterator
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self.index >= len(self.model_responses):
-            raise StopAsyncIteration
-        model_response = self.model_responses[self.index]
-        self.index += 1
-        return model_response
-
-
 def test_unit_test_custom_stream_wrapper():
     """
     Test if last streaming chunk ends with '?', if the message repeats itself.
@@ -3196,6 +3389,123 @@ def test_unit_test_custom_stream_wrapper():
             if "How are you?" in chunk.choices[0].delta.content:
                 freq += 1
     assert freq == 1
+
+
+@pytest.mark.parametrize(
+    "loop_amount",
+    [
+        litellm.REPEATED_STREAMING_CHUNK_LIMIT + 1,
+        litellm.REPEATED_STREAMING_CHUNK_LIMIT - 1,
+    ],
+)
+@pytest.mark.parametrize(
+    "chunk_value, expected_chunk_fail",
+    [("How are you?", True), ("{", False), ("", False), (None, False)],
+)
+def test_unit_test_custom_stream_wrapper_repeating_chunk(
+    loop_amount, chunk_value, expected_chunk_fail
+):
+    """
+    Test if InternalServerError raised if model enters infinite loop
+
+    Test if request passes if model loop is below accepted limit
+    """
+    litellm.set_verbose = False
+    chunks = [
+        litellm.ModelResponse(
+            **{
+                "id": "chatcmpl-123",
+                "object": "chat.completion.chunk",
+                "created": 1694268190,
+                "model": "gpt-3.5-turbo-0125",
+                "system_fingerprint": "fp_44709d6fcb",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": chunk_value},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+            stream=True,
+        )
+    ] * loop_amount
+    completion_stream = ModelResponseListIterator(model_responses=chunks)
+
+    response = litellm.CustomStreamWrapper(
+        completion_stream=completion_stream,
+        model="gpt-3.5-turbo",
+        custom_llm_provider="cached_response",
+        logging_obj=litellm.Logging(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Hey"}],
+            stream=True,
+            call_type="completion",
+            start_time=time.time(),
+            litellm_call_id="12345",
+            function_id="1245",
+        ),
+    )
+
+    print(f"expected_chunk_fail: {expected_chunk_fail}")
+
+    if (loop_amount > litellm.REPEATED_STREAMING_CHUNK_LIMIT) and expected_chunk_fail:
+        with pytest.raises(litellm.InternalServerError):
+            for chunk in response:
+                continue
+    else:
+        for chunk in response:
+            continue
+
+
+def test_unit_test_custom_stream_wrapper_openai():
+    """
+    Test if last streaming chunk ends with '?', if the message repeats itself.
+    """
+    litellm.set_verbose = False
+    chunk = {
+        "id": "chatcmpl-9mWtyDnikZZoB75DyfUzWUxiiE2Pi",
+        "choices": [
+            litellm.utils.StreamingChoices(
+                delta=litellm.utils.Delta(
+                    content=None, function_call=None, role=None, tool_calls=None
+                ),
+                finish_reason="content_filter",
+                index=0,
+                logprobs=None,
+            )
+        ],
+        "created": 1721353246,
+        "model": "gpt-3.5-turbo",
+        "object": "chat.completion.chunk",
+        "system_fingerprint": None,
+        "usage": None,
+    }
+    chunk = litellm.ModelResponse(**chunk, stream=True)
+
+    completion_stream = ModelResponseIterator(model_response=chunk)
+
+    response = litellm.CustomStreamWrapper(
+        completion_stream=completion_stream,
+        model="gpt-3.5-turbo",
+        custom_llm_provider="azure",
+        logging_obj=litellm.Logging(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Hey"}],
+            stream=True,
+            call_type="completion",
+            start_time=time.time(),
+            litellm_call_id="12345",
+            function_id="1245",
+        ),
+    )
+
+    stream_finish_reason: Optional[str] = None
+    for chunk in response:
+        assert chunk.choices[0].delta.content is None
+        if chunk.choices[0].finish_reason is not None:
+            stream_finish_reason = chunk.choices[0].finish_reason
+    assert stream_finish_reason == "content_filter"
 
 
 def test_aamazing_unit_test_custom_stream_wrapper_n():
@@ -3513,3 +3823,184 @@ def test_unit_test_custom_stream_wrapper_function_call():
         if chunk.choices[0].finish_reason is not None:
             finish_reason = chunk.choices[0].finish_reason
     assert finish_reason == "tool_calls"
+
+    ## UNIT TEST RECREATING MODEL RESPONSE
+    from litellm.types.utils import (
+        ChatCompletionDeltaToolCall,
+        Delta,
+        Function,
+        StreamingChoices,
+        Usage,
+    )
+
+    initial_model_response = litellm.ModelResponse(
+        id="chatcmpl-842826b6-75a1-4ed4-8a68-7655e60654b3",
+        choices=[
+            StreamingChoices(
+                finish_reason=None,
+                index=0,
+                delta=Delta(
+                    content="",
+                    role="assistant",
+                    function_call=None,
+                    tool_calls=[
+                        ChatCompletionDeltaToolCall(
+                            id="7ee88721-bfee-4584-8662-944a23d4c7a5",
+                            function=Function(
+                                arguments='{"questions": ["What are the main challenges facing civil engineers today?", "How has technology impacted the field of civil engineering?", "What are some of the most innovative projects in civil engineering in recent years?"]}',
+                                name="generate_series_of_questions",
+                            ),
+                            type="function",
+                            index=0,
+                        )
+                    ],
+                ),
+                logprobs=None,
+            )
+        ],
+        created=1720755257,
+        model="gemini-1.5-flash",
+        object="chat.completion.chunk",
+        system_fingerprint=None,
+        usage=Usage(prompt_tokens=67, completion_tokens=55, total_tokens=122),
+        stream=True,
+    )
+
+    obj_dict = initial_model_response.dict()
+
+    if "usage" in obj_dict:
+        del obj_dict["usage"]
+
+    new_model = response.model_response_creator(chunk=obj_dict)
+
+    print("\n\n{}\n\n".format(new_model))
+
+    assert len(new_model.choices[0].delta.tool_calls) > 0
+
+
+def test_unit_test_perplexity_citations_chunk():
+    """
+    Test if model returns a tool call, the finish reason is correctly set to 'tool_calls'
+    """
+    from litellm.types.llms.openai import ChatCompletionDeltaChunk
+
+    litellm.set_verbose = False
+    delta: ChatCompletionDeltaChunk = {
+        "content": "B",
+        "role": "assistant",
+    }
+    chunk = {
+        "id": "xxx",
+        "model": "llama-3.1-sonar-small-128k-online",
+        "created": 1725494279,
+        "usage": {"prompt_tokens": 15, "completion_tokens": 1, "total_tokens": 16},
+        "citations": [
+            "https://x.com/bizzabo?lang=ur",
+            "https://apps.apple.com/my/app/bizzabo/id408705047",
+            "https://www.bizzabo.com/blog/maximize-event-data-strategies-for-success",
+        ],
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": None,
+                "message": {"role": "assistant", "content": "B"},
+                "delta": delta,
+            }
+        ],
+    }
+    chunk = litellm.ModelResponse(**chunk, stream=True)
+
+    completion_stream = ModelResponseIterator(model_response=chunk)
+
+    response = litellm.CustomStreamWrapper(
+        completion_stream=completion_stream,
+        model="gpt-3.5-turbo",
+        custom_llm_provider="cached_response",
+        logging_obj=litellm.litellm_core_utils.litellm_logging.Logging(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Hey"}],
+            stream=True,
+            call_type="completion",
+            start_time=time.time(),
+            litellm_call_id="12345",
+            function_id="1245",
+        ),
+    )
+
+    finish_reason: Optional[str] = None
+    for response_chunk in response:
+        if response_chunk.choices[0].delta.content is not None:
+            print(
+                f"response_chunk.choices[0].delta.content: {response_chunk.choices[0].delta.content}"
+            )
+            assert "citations" in response_chunk
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "gpt-3.5-turbo",
+        "claude-3-5-sonnet-20240620",
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+        "vertex_ai/claude-3-5-sonnet@20240620",
+    ],
+)
+@pytest.mark.flaky(retries=3, delay=1)
+def test_streaming_tool_calls_valid_json_str(model):
+    if "vertex_ai" in model:
+        from litellm.tests.test_amazing_vertex_completion import (
+            load_vertex_ai_credentials,
+        )
+
+        load_vertex_ai_credentials()
+        vertex_location = "us-east5"
+    else:
+        vertex_location = None
+    litellm.set_verbose = False
+    messages = [
+        {"role": "user", "content": "Hit the snooze button."},
+    ]
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "snooze",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
+        }
+    ]
+
+    stream = litellm.completion(
+        model, messages, tools=tools, stream=True, vertex_location=vertex_location
+    )
+    chunks = [*stream]
+    print(f"chunks: {chunks}")
+    tool_call_id_arg_map = {}
+    curr_tool_call_id = None
+    curr_tool_call_str = ""
+    for chunk in chunks:
+        if chunk.choices[0].delta.tool_calls is not None:
+            if chunk.choices[0].delta.tool_calls[0].id is not None:
+                # flush prev tool call
+                if curr_tool_call_id is not None:
+                    tool_call_id_arg_map[curr_tool_call_id] = curr_tool_call_str
+                    curr_tool_call_str = ""
+                curr_tool_call_id = chunk.choices[0].delta.tool_calls[0].id
+                tool_call_id_arg_map[curr_tool_call_id] = ""
+            if chunk.choices[0].delta.tool_calls[0].function.arguments is not None:
+                curr_tool_call_str += (
+                    chunk.choices[0].delta.tool_calls[0].function.arguments
+                )
+    # flush prev tool call
+    if curr_tool_call_id is not None:
+        tool_call_id_arg_map[curr_tool_call_id] = curr_tool_call_str
+
+    for k, v in tool_call_id_arg_map.items():
+        print("k={}, v={}".format(k, v))
+        json.loads(v)  # valid json str

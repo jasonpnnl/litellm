@@ -1,5 +1,9 @@
 # Helm Chart for LiteLLM
 
+> [!IMPORTANT]
+> This is community maintained, Please make an issue if you run into a bug
+> We recommend using [Docker or Kubernetes for production deployments](https://docs.litellm.ai/docs/proxy/prod)
+
 ## Prerequisites
 
 - Kubernetes 1.21+
@@ -50,6 +54,7 @@ type: Opaque
 | `db.useExisting`                                           | Use an existing Postgres database.  A Kubernetes Secret object must exist that contains credentials for connecting to the database.  An example secret object definition is provided below.  | `false`  |
 | `db.endpoint`                                              | If `db.useExisting` is `true`, this is the IP, Hostname or Service Name of the Postgres server to connect to.                                                                         | `localhost`  |
 | `db.database`                                              | If `db.useExisting` is `true`, the name of the existing database to connect to.                                                                                                       | `litellm`  |
+| `db.url`                                              | If `db.useExisting` is `true`, the connection url of the existing database to connect to can be overwritten with this value.                                                                                                       | `postgresql://$(DATABASE_USERNAME):$(DATABASE_PASSWORD)@$(DATABASE_HOST)/$(DATABASE_NAME)`  |
 | `db.secret.name`                                           | If `db.useExisting` is `true`, the name of the Kubernetes Secret that contains credentials.                                                                                           | `postgres`  |
 | `db.secret.usernameKey`                                    | If `db.useExisting` is `true`, the name of the key within the Kubernetes Secret that holds the username for authenticating with the Postgres instance.                                | `username`  |
 | `db.secret.passwordKey`                                    | If `db.useExisting` is `true`, the name of the key within the Kubernetes Secret that holds the password associates with the above user.                                               | `password`  |

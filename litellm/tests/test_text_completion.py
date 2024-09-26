@@ -3840,7 +3840,26 @@ def test_completion_chatgpt_prompt():
     try:
         print("\n gpt3.5 test\n")
         response = text_completion(
-            model="gpt-3.5-turbo", prompt="What's the weather in SF?"
+            model="openai/gpt-3.5-turbo", prompt="What's the weather in SF?"
+        )
+        print(response)
+        response_str = response["choices"][0]["text"]
+        print("\n", response.choices)
+        print("\n", response.choices[0])
+        # print(response.choices[0].text)
+    except Exception as e:
+        pytest.fail(f"Error occurred: {e}")
+
+
+# test_completion_chatgpt_prompt()
+
+
+def test_completion_gpt_instruct():
+    try:
+        response = text_completion(
+            model="gpt-3.5-turbo-instruct-0914",
+            prompt="What's the weather in SF?",
+            custom_llm_provider="openai",
         )
         print(response)
         response_str = response["choices"][0]["text"]
@@ -3932,6 +3951,9 @@ def test_completion_hf_prompt_array():
         print(response.choices)
         assert len(response.choices) == 2
         # response_str = response["choices"][0]["text"]
+    except litellm.RateLimitError:
+        print("got rate limit error from hugging face... passsing")
+        return
     except Exception as e:
         print(str(e))
         if "is currently loading" in str(e):
@@ -4085,9 +4107,19 @@ async def test_async_text_completion_chat_model_stream():
 # asyncio.run(test_async_text_completion_chat_model_stream())
 
 
+@pytest.mark.parametrize(
+    "model", ["vertex_ai/codestral@2405", "text-completion-codestral/codestral-2405"]  #
+)
 @pytest.mark.asyncio
-async def test_completion_codestral_fim_api():
+async def test_completion_codestral_fim_api(model):
     try:
+        if model == "vertex_ai/codestral@2405":
+            from litellm.tests.test_amazing_vertex_completion import (
+                load_vertex_ai_credentials,
+            )
+
+            load_vertex_ai_credentials()
+
         litellm.set_verbose = True
         import logging
 
@@ -4095,7 +4127,7 @@ async def test_completion_codestral_fim_api():
 
         verbose_logger.setLevel(level=logging.DEBUG)
         response = await litellm.atext_completion(
-            model="text-completion-codestral/codestral-2405",
+            model=model,
             prompt="def is_odd(n): \n return n % 2 == 1 \ndef test_is_odd():",
             suffix="return True",
             temperature=0,
@@ -4118,9 +4150,19 @@ async def test_completion_codestral_fim_api():
         pytest.fail(f"Error occurred: {e}")
 
 
+@pytest.mark.parametrize(
+    "model",
+    ["vertex_ai/codestral@2405", "text-completion-codestral/codestral-2405"],
+)
 @pytest.mark.asyncio
-async def test_completion_codestral_fim_api_stream():
+async def test_completion_codestral_fim_api_stream(model):
     try:
+        if model == "vertex_ai/codestral@2405":
+            from litellm.tests.test_amazing_vertex_completion import (
+                load_vertex_ai_credentials,
+            )
+
+            load_vertex_ai_credentials()
         import logging
 
         from litellm._logging import verbose_logger
@@ -4129,7 +4171,7 @@ async def test_completion_codestral_fim_api_stream():
 
         # verbose_logger.setLevel(level=logging.DEBUG)
         response = await litellm.atext_completion(
-            model="text-completion-codestral/codestral-2405",
+            model=model,
             prompt="def is_odd(n): \n return n % 2 == 1 \ndef test_is_odd():",
             suffix="return True",
             temperature=0,
@@ -4160,7 +4202,7 @@ def mock_post(*args, **kwargs):
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.headers = {"Content-Type": "application/json"}
-    mock_response.model_dump.return_value = {
+    mock_response.parse.return_value.model_dump.return_value = {
         "id": "cmpl-7a59383dd4234092b9e5d652a7ab8143",
         "object": "text_completion",
         "created": 1718824735,
@@ -4187,14 +4229,27 @@ def test_completion_vllm():
 
     client = OpenAI(api_key="my-fake-key")
 
-    with patch.object(client.completions, "create", side_effect=mock_post) as mock_call:
+    with patch.object(
+        client.completions.with_raw_response, "create", side_effect=mock_post
+    ) as mock_call:
         response = text_completion(
             model="openai/gemini-1.5-flash", prompt="ping", client=client, hello="world"
         )
-        print(response)
+        print("raw response", response)
 
         assert response.usage.prompt_tokens == 2
 
         mock_call.assert_called_once()
 
         assert "hello" in mock_call.call_args.kwargs["extra_body"]
+
+
+def test_completion_fireworks_ai_multiple_choices():
+    litellm.set_verbose = True
+    response = litellm.text_completion(
+        model="fireworks_ai/llama-v3p1-8b-instruct",
+        prompt=["halo", "hi", "halo", "hi"],
+    )
+    print(response.choices)
+
+    assert len(response.choices) == 4

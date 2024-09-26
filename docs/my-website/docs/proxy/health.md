@@ -10,7 +10,12 @@ The proxy exposes:
 
 ## `/health`
 #### Request
-Make a GET Request to `/health` on the proxy
+Make a GET Request to `/health` on the proxy 
+
+:::info
+**This endpoint makes an LLM API call to each model to check if it is healthy.**
+:::
+
 ```shell
 curl --location 'http://0.0.0.0:4000/health' -H "Authorization: Bearer sk-1234"
 ```
@@ -39,28 +44,6 @@ litellm --health
         }
     ]
 }
-```
-
-### Background Health Checks 
-
-You can enable model health checks being run in the background, to prevent each model from being queried too frequently via `/health`.
-
-Here's how to use it: 
-1. in the config.yaml add:
-```
-general_settings: 
-  background_health_checks: True # enable background health checks
-  health_check_interval: 300 # frequency of background health checks
-```
-
-2. Start server 
-```
-$ litellm /path/to/config.yaml
-```
-
-3. Query health endpoint: 
-```
-curl --location 'http://0.0.0.0:4000/health'
 ```
 
 ### Embedding Models 
@@ -110,6 +93,105 @@ model_list:
       api_version: "2023-07-01-preview"
     model_info:
       mode: completion # 👈 ADD THIS
+```
+
+### Speech to Text Models 
+
+```yaml
+model_list:
+  - model_name: whisper
+    litellm_params:
+      model: whisper-1
+      api_key: os.environ/OPENAI_API_KEY
+    model_info:
+      mode: audio_transcription
+```
+
+
+### Text to Speech Models 
+
+```yaml
+# OpenAI Text to Speech Models
+  - model_name: tts
+    litellm_params:
+      model: openai/tts-1
+      api_key: "os.environ/OPENAI_API_KEY"
+    model_info:
+      mode: audio_speech
+```
+
+### Batch Models (Azure Only)
+
+For Azure models deployed as 'batch' models, set `mode: batch`. 
+
+```yaml
+model_list:
+  - model_name: "batch-gpt-4o-mini"
+    litellm_params:
+      model: "azure/batch-gpt-4o-mini"
+      api_key: os.environ/AZURE_API_KEY
+      api_base: os.environ/AZURE_API_BASE
+    model_info:
+      mode: batch
+```
+
+Expected Response 
+
+
+```bash
+{
+    "healthy_endpoints": [
+        {
+            "api_base": "https://...",
+            "model": "azure/gpt-4o-mini",
+            "x-ms-region": "East US"
+        }
+    ],
+    "unhealthy_endpoints": [],
+    "healthy_count": 1,
+    "unhealthy_count": 0
+}
+```
+
+## Background Health Checks 
+
+You can enable model health checks being run in the background, to prevent each model from being queried too frequently via `/health`. 
+
+:::info
+
+**This makes an LLM API call to each model to check if it is healthy.**
+
+:::
+
+Here's how to use it: 
+1. in the config.yaml add:
+```
+general_settings: 
+  background_health_checks: True # enable background health checks
+  health_check_interval: 300 # frequency of background health checks
+```
+
+2. Start server 
+```
+$ litellm /path/to/config.yaml
+```
+
+3. Query health endpoint: 
+```
+curl --location 'http://0.0.0.0:4000/health'
+```
+
+### Hide details
+
+The health check response contains details like endpoint URLs, error messages,
+and other LiteLLM params. While this is useful for debugging, it can be
+problematic when exposing the proxy server to a broad audience.
+
+You can hide these details by setting the `health_check_details` setting to `False`.
+
+```yaml
+general_settings: 
+  health_check_details: False
 ```
 
 ## `/health/readiness`
@@ -206,3 +288,4 @@ curl -X POST 'http://localhost:4000/chat/completions' \
 }
 '
 ```
+

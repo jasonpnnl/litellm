@@ -22,7 +22,6 @@ interface NavbarProps {
   userID: string | null;
   userRole: string | null;
   userEmail: string | null;
-  showSSOBanner: boolean;
   premiumUser: boolean;
   setProxySettings: React.Dispatch<React.SetStateAction<any>>;
   proxySettings: any;
@@ -31,18 +30,19 @@ const Navbar: React.FC<NavbarProps> = ({
   userID,
   userRole,
   userEmail,
-  showSSOBanner,
   premiumUser,
   setProxySettings,
   proxySettings,
 }) => {
   console.log("User ID:", userID);
   console.log("userEmail:", userEmail);
-  console.log("showSSOBanner:", showSSOBanner);
   console.log("premiumUser:", premiumUser);
 
   // const userColors = require('./ui_colors.json') || {};
   const isLocal = process.env.NODE_ENV === "development";
+  if (isLocal != true) {
+    console.log = function() {};
+  }
   const proxyBaseUrl = isLocal ? "http://localhost:4000" : null;
   const imageUrl = isLocal ? "http://localhost:4000/get_image" : "/get_image";
   let logoutUrl = "";
@@ -57,7 +57,12 @@ const Navbar: React.FC<NavbarProps> = ({
 
   console.log("logoutUrl=", logoutUrl);
 
-
+  const handleLogout = () => {
+    // Clear cookies
+    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    window.location.href = logoutUrl;
+  }
+   
 
   const items: MenuProps["items"] = [
     {
@@ -72,11 +77,7 @@ const Navbar: React.FC<NavbarProps> = ({
     },
     {
       key: "2",
-      label: (
-        <a href={logoutUrl}>
-          <p>Logout</p>
-        </a>
-      ),
+      label: <p onClick={handleLogout}>Logout</p>,
     }
   ];
 
@@ -98,7 +99,7 @@ const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
       <div className="text-right mx-4 my-2 absolute top-0 right-0 flex items-center justify-end space-x-2">
-        {showSSOBanner ? (
+        {premiumUser ? null : (
           <div
             style={{
               // border: '1px solid #391085',
@@ -117,7 +118,7 @@ const Navbar: React.FC<NavbarProps> = ({
               Get enterprise license
             </a>
           </div>
-        ) : null}
+        )}
 
         <div
           style={{

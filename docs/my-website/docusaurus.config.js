@@ -11,7 +11,7 @@ const config = {
   favicon: '/img/favicon.ico', 
 
   // Set the production url of your site here
-  url: 'https://litellm.vercel.app/',
+  url: 'https://docs.litellm.ai/',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
@@ -26,7 +26,32 @@ const config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
-
+  themes: [
+    [
+      require.resolve("@getcanary/docusaurus-theme-search-pagefind"),
+      {
+        styles: {
+          "--canary-color-primary-c": 0.1,
+          "--canary-color-primary-h": 270,
+        },
+        pagefind: {
+          ranking: {
+            // https://pagefind.app/docs/ranking
+            pageLength: 0.0,
+            termFrequency: 1.0,
+            termSimilarity: 1.0,
+            termSaturation: 2.0,
+          }
+        },
+        tabs: [
+          { name: "All", pattern: "**/*" },
+          { name: "Providers", pattern: "/docs/providers/**" },
+          { name: "Proxy", pattern: "/docs/proxy/**" }
+        ],
+        indexOnly: true,
+      },
+    ],
+  ],
   plugins: [
     [
       '@docusaurus/plugin-ideal-image',
@@ -116,6 +141,11 @@ const config = {
             position: 'left',
             label: '🚀 Hosted',
             to: "docs/hosted"
+          },
+          {
+            href: 'https://models.litellm.ai/',
+            label: '💸 LLM Model Cost Map',
+            position: 'right',
           },
           {
             href: 'https://github.com/BerriAI/litellm',
