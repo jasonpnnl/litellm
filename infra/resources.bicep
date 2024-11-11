@@ -54,11 +54,10 @@ var dockerImageNameAndTag = '${dockerImageName}/${dockerImageName}:latest'
 var latestImage = '${containerRegistryEndpoint}/${dockerImageNameAndTag}' ?? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 var linux_fx_version = 'DOCKER|${latestImage}'
 
-var allowed_audience = 'api://${authClientId}'
-
 var keyVaultSecretsUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var containerRegistryAcrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var proxyBaseUrl = (name == 'aiendpointdev' ? 'https://ai-incubator-dev-api.pnnl.gov/' : name == 'aiendpointprod' ? 'https://ai-incubator-api.pnnl.gov/' : 'https://${webapp_name}.azurewebsites.net/')
+var appServicePlanSku = name == 'aiendpointprod' ? 'P0v3' : 'B1'
 
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
@@ -69,10 +68,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
     reserved: true
   }
   sku: {
-    name: 'B1'
-    tier: 'Basic'
-    size: 'B1'
-    family: 'B'
+    name: appServicePlanSku
     capacity: 1
   }
   kind: 'linux'
