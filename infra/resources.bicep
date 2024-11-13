@@ -36,11 +36,6 @@ param tags object = {}
 
 var abbrs = loadJsonContent('./abbreviations.json')
 
-var subscriptionName = subscription().displayName
-var pnnlVnetName = '${subscriptionName}-${location}_VNET'
-var pnnlSubnetName = 'private-2'
-var pnnlVnetRGName = '${subscriptionName}_Restricted'
-
 var openai_name = toLower('${name}ai${resourceToken}')
 var webapp_name = toLower('${name}-webapp-${resourceToken}')
 var appservice_name = toLower('${name}-app-${resourceToken}')
@@ -86,13 +81,13 @@ resource existingAppGWSubnet 'Microsoft.Network/virtualNetworks/subnets@2021-02-
 }
 
 resource existingPNNLVnet 'Microsoft.Network/virtualNetworks@2021-02-01' existing = {
-  name: pnnlVnetName
-  scope: resourceGroup(pnnlVnetRGName)
+  name: 'ai-incubator-vnet'
+  scope: resourceGroup('9e44d5e3-fcdd-4192-98fe-feb9e7748478', 'rg-ai-incubator-shared')
 }
 
 resource existingPNNLSubnet 'Microsoft.Network/virtualNetworks/subnets@2021-02-01' existing = {
   parent: existingPNNLVnet
-  name: pnnlSubnetName
+  name: 'default2'
 }
 
 // // Create a virtual network for the web app
@@ -271,6 +266,12 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
           action: 'Allow'
           priority: 300
           name: 'AppGW Subnet'
+        }
+        {
+          vnetSubnetResourceId: existingPNNLSubnet.id
+          action: 'Allow'
+          priority: 301
+          name: 'v3 Subnet'
         }
       ]
       scmIpSecurityRestrictionsDefaultAction: 'Deny'
