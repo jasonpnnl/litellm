@@ -1145,10 +1145,33 @@ main();
 
 </Tabs>
 
-### Pass User LLM API Keys
-Allows your users to pass in their OpenAI API key (any LiteLLM supported provider) to make requests 
+### Pass User LLM API Keys / API Base
+Allows your users to pass in their OpenAI API key/API base (any LiteLLM supported provider) to make requests 
 
 Here's how to do it: 
+
+#### 1. Enable configurable clientside auth credentials for a provider
+
+```yaml
+model_list:
+  - model_name: "fireworks_ai/*"
+    litellm_params:
+      model: "fireworks_ai/*"
+      configurable_clientside_auth_params: ["api_base"]
+      # OR 
+      configurable_clientside_auth_params: [{"api_base": "^https://litellm.*direct\.fireworks\.ai/v1$"}] # 👈 regex
+```
+
+Specify any/all auth params you want the user to be able to configure:
+
+- api_base (✅ regex supported)
+- api_key
+- base_url 
+
+(check [provider docs](../providers/) for provider-specific auth params - e.g. `vertex_project`)
+
+
+#### 2. Test it!
 
 ```python
 import openai
@@ -1164,7 +1187,7 @@ response = client.chat.completions.create(model="gpt-3.5-turbo", messages = [
         "content": "this is a test request, write a short poem"
     }
 ], 
-    extra_body={"api_key": "my-bad-key"}) # 👈 User Key
+    extra_body={"api_key": "my-bad-key", "api_base": "https://litellm-dev.direct.fireworks.ai/v1"}) # 👈 clientside credentials
 
 print(response)
 ```

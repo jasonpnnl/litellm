@@ -8,7 +8,7 @@ from httpx import Response
 
 import litellm
 from litellm import verbose_logger
-from litellm.caching import InMemoryCache
+from litellm.caching.caching import InMemoryCache
 from litellm.llms.custom_httpx.http_handler import (
     _get_httpx_client,
     get_async_httpx_client,
@@ -61,7 +61,7 @@ async def async_convert_url_to_base64(url: str) -> str:
         try:
             response = await client.get(url, follow_redirects=True)
             return _process_image_response(response, url)
-        except:
+        except Exception:
             pass
     raise Exception(
         f"Error: Unable to fetch image from URL after 3 attempts. url={url}"
