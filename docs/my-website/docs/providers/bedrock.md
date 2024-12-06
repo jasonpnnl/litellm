@@ -2,25 +2,31 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 # AWS Bedrock
-Anthropic, Amazon Titan, A121 LLMs are Supported on Bedrock
+ALL Bedrock models (Anthropic, Meta, Mistral, Amazon, etc.) are Supported
 
 LiteLLM requires `boto3` to be installed on your system for Bedrock requests
 ```shell
 pip install boto3>=1.28.57
 ```
 
-## Required Environment Variables
-```python
-os.environ["AWS_ACCESS_KEY_ID"] = ""  # Access key
-os.environ["AWS_SECRET_ACCESS_KEY"] = "" # Secret access key
-os.environ["AWS_REGION_NAME"] = "" # us-east-1, us-east-2, us-west-1, us-west-2
-```
+:::info
+
+For **Amazon Nova Models**: Bump to v1.53.5+
+
+:::
+
+:::info
+
+LiteLLM uses boto3 to handle authentication. All these options are supported - https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#credentials.
+
+:::
 
 ## Usage
 
 <a target="_blank" href="https://colab.research.google.com/github/BerriAI/litellm/blob/main/cookbook/LiteLLM_Bedrock.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
+
 
 ```python
 import os
@@ -38,7 +44,7 @@ response = completion(
 
 ## LiteLLM Proxy Usage 
 
-Here's how to call Anthropic with the LiteLLM Proxy Server
+Here's how to call Bedrock with the LiteLLM Proxy Server
 
 ### 1. Setup config.yaml
 
@@ -706,6 +712,43 @@ print(response)
 </Tabs>
 
 
+## Set 'converse' / 'invoke' route 
+
+:::info
+
+Supported from LiteLLM Version `v1.53.5`
+
+:::
+
+LiteLLM defaults to the `invoke` route. LiteLLM uses the `converse` route for Bedrock models that support it.
+
+To explicitly set the route, do `bedrock/converse/<model>` or `bedrock/invoke/<model>`.
+
+
+E.g. 
+
+<Tabs>
+<TabItem value="sdk" label="SDK">
+
+```python
+from litellm import completion
+
+completion(model="bedrock/converse/us.amazon.nova-pro-v1:0")
+```
+
+</TabItem>
+<TabItem value="proxy" label="PROXY">
+
+```yaml
+model_list:
+  - model_name: bedrock-model
+    litellm_params:
+      model: bedrock/converse/us.amazon.nova-pro-v1:0
+```
+
+</TabItem>
+</Tabs>
+
 ## Alternate user/assistant messages
 
 Use `user_continue_message` to add a default user message, for cases (e.g. Autogen) where the client might not follow alternating user/assistant messages starting and ending with a user message. 
@@ -744,6 +787,174 @@ curl -X POST 'http://0.0.0.0:4000/chat/completions' \
     "messages": [{"role": "assistant", "content": "Hey, how's it going?"}]
 }'
 ```
+
+## Usage - PDF / Document Understanding
+
+LiteLLM supports Document Understanding for Bedrock models - [AWS Bedrock Docs](https://docs.aws.amazon.com/nova/latest/userguide/modalities-document.html).
+
+### url 
+
+<Tabs>
+<TabItem value="sdk" label="SDK">
+
+```python
+from litellm.utils import supports_pdf_input, completion
+
+# set aws credentials
+os.environ["AWS_ACCESS_KEY_ID"] = ""
+os.environ["AWS_SECRET_ACCESS_KEY"] = ""
+os.environ["AWS_REGION_NAME"] = ""
+
+
+# pdf url
+image_url = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+
+# model
+model = "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+image_content = [
+    {"type": "text", "text": "What's this file about?"},
+    {
+        "type": "image_url",
+        "image_url": image_url, # OR {"url": image_url}
+    },
+]
+
+
+if not supports_pdf_input(model, None):
+    print("Model does not support image input")
+
+response = completion(
+    model=model,
+    messages=[{"role": "user", "content": image_content}],
+)
+assert response is not None
+```
+</TabItem>
+<TabItem value="proxy" label="PROXY">
+
+1. Setup config.yaml
+
+```yaml
+model_list:
+  - model_name: bedrock-model
+    litellm_params:
+      model: bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/AWS_REGION_NAME
+```
+
+2. Start the proxy 
+
+```bash
+litellm --config /path/to/config.yaml
+```
+
+3. Test it! 
+
+```bash
+curl -X POST 'http://0.0.0.0:4000/chat/completions' \
+-H 'Content-Type: application/json' \
+-H 'Authorization: Bearer sk-1234' \
+-d '{
+    "model": "bedrock-model",
+    "messages": [
+        {"role": "user", "content": {"type": "text", "text": "What's this file about?"}},
+        {
+            "type": "image_url",
+            "image_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        }
+    ]
+}'
+```
+</TabItem>
+</Tabs>
+
+### base64
+
+<Tabs>
+<TabItem value="sdk" label="SDK">
+
+```python
+from litellm.utils import supports_pdf_input, completion
+
+# set aws credentials
+os.environ["AWS_ACCESS_KEY_ID"] = ""
+os.environ["AWS_SECRET_ACCESS_KEY"] = ""
+os.environ["AWS_REGION_NAME"] = ""
+
+
+# pdf url
+image_url = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+response = requests.get(url)
+file_data = response.content
+
+encoded_file = base64.b64encode(file_data).decode("utf-8")
+base64_url = f"data:application/pdf;base64,{encoded_file}"
+
+# model
+model = "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+image_content = [
+    {"type": "text", "text": "What's this file about?"},
+    {
+        "type": "image_url",
+        "image_url": base64_url, # OR {"url": base64_url}
+    },
+]
+
+
+if not supports_pdf_input(model, None):
+    print("Model does not support image input")
+
+response = completion(
+    model=model,
+    messages=[{"role": "user", "content": image_content}],
+)
+assert response is not None
+```
+</TabItem>
+<TabItem value="proxy" label="PROXY">
+
+1. Setup config.yaml
+
+```yaml
+model_list:
+  - model_name: bedrock-model
+    litellm_params:
+      model: bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/AWS_REGION_NAME
+```
+
+2. Start the proxy 
+
+```bash
+litellm --config /path/to/config.yaml
+```
+
+3. Test it! 
+
+```bash
+curl -X POST 'http://0.0.0.0:4000/chat/completions' \
+-H 'Content-Type: application/json' \
+-H 'Authorization: Bearer sk-1234' \
+-d '{
+    "model": "bedrock-model",
+    "messages": [
+        {"role": "user", "content": {"type": "text", "text": "What's this file about?"}},
+        {
+            "type": "image_url",
+            "image_url": "data:application/pdf;base64,{b64_encoded_file}",
+        }
+    ]
+}'
+```
+</TabItem>
+</Tabs>
+
 
 ## Boto3 - Authentication
 
@@ -1082,5 +1293,6 @@ print(f"response: {response}")
 
 | Model Name           | Function Call                               |
 |----------------------|---------------------------------------------|
+| Stable Diffusion 3 - v0 | `embedding(model="bedrock/stability.stability.sd3-large-v1:0", prompt=prompt)` |
 | Stable Diffusion - v0 | `embedding(model="bedrock/stability.stable-diffusion-xl-v0", prompt=prompt)` |
 | Stable Diffusion - v0 | `embedding(model="bedrock/stability.stable-diffusion-xl-v1", prompt=prompt)` |

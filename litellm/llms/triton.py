@@ -8,7 +8,11 @@ import httpx  # type: ignore
 import requests  # type: ignore
 
 import litellm
-from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler, HTTPHandler
+from litellm.llms.custom_httpx.http_handler import (
+    AsyncHTTPHandler,
+    HTTPHandler,
+    get_async_httpx_client,
+)
 from litellm.utils import (
     Choices,
     CustomStreamWrapper,
@@ -47,11 +51,11 @@ class TritonChatCompletion(BaseLLM):
         data: dict,
         model_response: litellm.utils.EmbeddingResponse,
         api_base: str,
-        logging_obj=None,
+        logging_obj: Any,
         api_key: Optional[str] = None,
     ) -> EmbeddingResponse:
-        async_handler = AsyncHTTPHandler(
-            timeout=httpx.Timeout(timeout=600.0, connect=5.0)
+        async_handler = get_async_httpx_client(
+            llm_provider=litellm.LlmProviders.TRITON, params={"timeout": 600.0}
         )
 
         response = await async_handler.post(url=api_base, data=json.dumps(data))
@@ -93,9 +97,9 @@ class TritonChatCompletion(BaseLLM):
         timeout: float,
         api_base: str,
         model_response: litellm.utils.EmbeddingResponse,
+        logging_obj: Any,
+        optional_params: dict,
         api_key: Optional[str] = None,
-        logging_obj=None,
-        optional_params=None,
         client=None,
         aembedding: bool = False,
     ) -> EmbeddingResponse:
@@ -122,7 +126,7 @@ class TritonChatCompletion(BaseLLM):
         )
 
         if aembedding:
-            response = await self.aembedding(
+            response = await self.aembedding(  # type: ignore
                 data=data_for_triton,
                 model_response=model_response,
                 logging_obj=logging_obj,
@@ -141,10 +145,10 @@ class TritonChatCompletion(BaseLLM):
         messages: List[dict],
         timeout: float,
         api_base: str,
+        logging_obj: Any,
+        optional_params: dict,
         model_response: ModelResponse,
         api_key: Optional[str] = None,
-        logging_obj=None,
-        optional_params=None,
         client=None,
         stream: Optional[bool] = False,
         acompletion: bool = False,
@@ -239,11 +243,13 @@ class TritonChatCompletion(BaseLLM):
         else:
             handler = HTTPHandler()
         if stream:
-            return self._handle_stream(
+            return self._handle_stream(  # type: ignore
                 handler, api_base, json_data_for_triton, model, logging_obj
             )
         else:
-            response = handler.post(url=api_base, data=json_data_for_triton, headers=headers)
+            response = handler.post(
+                url=api_base, data=json_data_for_triton, headers=headers
+            )
             return self._handle_response(
                 response, model_response, logging_obj, type_of_model=type_of_model
             )
@@ -259,9 +265,11 @@ class TritonChatCompletion(BaseLLM):
         model_response,
         type_of_model,
     ) -> ModelResponse:
-        handler = AsyncHTTPHandler()
+        handler = get_async_httpx_client(
+            llm_provider=litellm.LlmProviders.TRITON, params={"timeout": 600.0}
+        )
         if stream:
-            return self._ahandle_stream(
+            return self._ahandle_stream(  # type: ignore
                 handler, api_base, data_for_triton, model, logging_obj
             )
         else:

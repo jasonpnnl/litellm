@@ -5,7 +5,11 @@ import httpx
 from openai.types.image import Image
 
 import litellm
-from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler, HTTPHandler
+from litellm.llms.custom_httpx.http_handler import (
+    AsyncHTTPHandler,
+    HTTPHandler,
+    get_async_httpx_client,
+)
 from litellm.llms.vertex_ai_and_google_ai_studio.gemini.vertex_and_google_ai_studio_gemini import (
     VertexLLM,
 )
@@ -43,17 +47,17 @@ class VertexImageGeneration(VertexLLM):
         vertex_location: Optional[str],
         vertex_credentials: Optional[str],
         model_response: litellm.ImageResponse,
+        logging_obj: Any,
         model: Optional[
             str
         ] = "imagegeneration",  # vertex ai uses imagegeneration as the default model
         client: Optional[Any] = None,
         optional_params: Optional[dict] = None,
         timeout: Optional[int] = None,
-        logging_obj=None,
         aimg_generation=False,
-    ):
+    ) -> litellm.ImageResponse:
         if aimg_generation is True:
-            return self.aimage_generation(
+            return self.aimage_generation(  # type: ignore
                 prompt=prompt,
                 vertex_project=vertex_project,
                 vertex_location=vertex_location,
@@ -138,13 +142,13 @@ class VertexImageGeneration(VertexLLM):
         vertex_location: Optional[str],
         vertex_credentials: Optional[str],
         model_response: litellm.ImageResponse,
+        logging_obj: Any,
         model: Optional[
             str
         ] = "imagegeneration",  # vertex ai uses imagegeneration as the default model
         client: Optional[AsyncHTTPHandler] = None,
         optional_params: Optional[dict] = None,
         timeout: Optional[int] = None,
-        logging_obj=None,
     ):
         response = None
         if client is None:
@@ -156,7 +160,10 @@ class VertexImageGeneration(VertexLLM):
             else:
                 _params["timeout"] = httpx.Timeout(timeout=600.0, connect=5.0)
 
-            self.async_handler = AsyncHTTPHandler(**_params)  # type: ignore
+            self.async_handler = get_async_httpx_client(
+                llm_provider=litellm.LlmProviders.VERTEX_AI,
+                params={"timeout": timeout},
+            )
         else:
             self.async_handler = client  # type: ignore
 

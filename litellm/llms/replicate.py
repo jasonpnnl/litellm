@@ -9,7 +9,10 @@ import httpx  # type: ignore
 import requests  # type: ignore
 
 import litellm
-from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
+from litellm.llms.custom_httpx.http_handler import (
+    AsyncHTTPHandler,
+    get_async_httpx_client,
+)
 from litellm.utils import CustomStreamWrapper, ModelResponse, Usage
 
 from .prompt_templates.factory import custom_prompt, prompt_factory
@@ -297,7 +300,7 @@ def handle_prediction_response_streaming(prediction_url, api_token, print_verbos
             if "output" in response_data:
                 try:
                     output_string = "".join(response_data["output"])
-                except Exception as e:
+                except Exception:
                     raise ReplicateError(
                         status_code=422,
                         message="Unable to parse response. Got={}".format(
@@ -325,7 +328,7 @@ def handle_prediction_response_streaming(prediction_url, api_token, print_verbos
 async def async_handle_prediction_response_streaming(
     prediction_url, api_token, print_verbose
 ):
-    http_handler = AsyncHTTPHandler(concurrent_limit=1)
+    http_handler = get_async_httpx_client(llm_provider=litellm.LlmProviders.REPLICATE)
     previous_output = ""
     output_string = ""
 
@@ -344,7 +347,7 @@ async def async_handle_prediction_response_streaming(
             if "output" in response_data:
                 try:
                     output_string = "".join(response_data["output"])
-                except Exception as e:
+                except Exception:
                     raise ReplicateError(
                         status_code=422,
                         message="Unable to parse response. Got={}".format(
@@ -479,7 +482,7 @@ def completion(
     else:
         input_data = {"prompt": prompt, **optional_params}
 
-    if acompletion is not None and acompletion == True:
+    if acompletion is not None and acompletion is True:
         return async_completion(
             model_response=model_response,
             model=model,
@@ -513,7 +516,7 @@ def completion(
     print_verbose(prediction_url)
 
     # Handle the prediction response (streaming or non-streaming)
-    if "stream" in optional_params and optional_params["stream"] == True:
+    if "stream" in optional_params and optional_params["stream"] is True:
         print_verbose("streaming request")
         _response = handle_prediction_response_streaming(
             prediction_url, api_key, print_verbose
@@ -560,7 +563,9 @@ async def async_completion(
     logging_obj,
     print_verbose,
 ) -> Union[ModelResponse, CustomStreamWrapper]:
-    http_handler = AsyncHTTPHandler(concurrent_limit=1)
+    http_handler = get_async_httpx_client(
+        llm_provider=litellm.LlmProviders.REPLICATE,
+    )
     prediction_url = await async_start_prediction(
         version_id,
         input_data,
@@ -571,7 +576,7 @@ async def async_completion(
         http_handler=http_handler,
     )
 
-    if "stream" in optional_params and optional_params["stream"] == True:
+    if "stream" in optional_params and optional_params["stream"] is True:
         _response = async_handle_prediction_response_streaming(
             prediction_url, api_key, print_verbose
         )

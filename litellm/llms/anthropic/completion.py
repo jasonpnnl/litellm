@@ -13,7 +13,11 @@ import httpx
 import requests
 
 import litellm
-from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler, HTTPHandler
+from litellm.llms.custom_httpx.http_handler import (
+    AsyncHTTPHandler,
+    HTTPHandler,
+    get_async_httpx_client,
+)
 from litellm.utils import CustomStreamWrapper, ModelResponse, Usage
 
 from ..base import BaseLLM
@@ -114,7 +118,7 @@ class AnthropicTextCompletion(BaseLLM):
         ## RESPONSE OBJECT
         try:
             completion_response = response.json()
-        except:
+        except Exception:
             raise AnthropicError(
                 message=response.text, status_code=response.status_code
             )
@@ -162,7 +166,10 @@ class AnthropicTextCompletion(BaseLLM):
         client=None,
     ):
         if client is None:
-            client = AsyncHTTPHandler(timeout=httpx.Timeout(timeout=600.0, connect=5.0))
+            client = get_async_httpx_client(
+                llm_provider=litellm.LlmProviders.ANTHROPIC,
+                params={"timeout": httpx.Timeout(timeout=600.0, connect=5.0)},
+            )
 
         response = await client.post(api_base, headers=headers, data=json.dumps(data))
 
@@ -198,7 +205,10 @@ class AnthropicTextCompletion(BaseLLM):
         client=None,
     ):
         if client is None:
-            client = AsyncHTTPHandler(timeout=httpx.Timeout(timeout=600.0, connect=5.0))
+            client = get_async_httpx_client(
+                llm_provider=litellm.LlmProviders.ANTHROPIC,
+                params={"timeout": httpx.Timeout(timeout=600.0, connect=5.0)},
+            )
 
         response = await client.post(api_base, headers=headers, data=json.dumps(data))
 
@@ -229,7 +239,7 @@ class AnthropicTextCompletion(BaseLLM):
         encoding,
         api_key,
         logging_obj,
-        optional_params=None,
+        optional_params: dict,
         litellm_params=None,
         logger_fn=None,
         headers={},
@@ -276,8 +286,8 @@ class AnthropicTextCompletion(BaseLLM):
         )
 
         ## COMPLETION CALL
-        if "stream" in optional_params and optional_params["stream"] == True:
-            if acompletion == True:
+        if "stream" in optional_params and optional_params["stream"] is True:
+            if acompletion is True:
                 return self.async_streaming(
                     model=model,
                     api_base=api_base,
@@ -309,7 +319,7 @@ class AnthropicTextCompletion(BaseLLM):
                 logging_obj=logging_obj,
             )
             return stream_response
-        elif acompletion == True:
+        elif acompletion is True:
             return self.async_completion(
                 model=model,
                 model_response=model_response,

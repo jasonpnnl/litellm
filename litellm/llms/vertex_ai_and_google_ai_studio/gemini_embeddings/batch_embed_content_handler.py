@@ -3,12 +3,17 @@ Google AI Studio /batchEmbedContents Embeddings Endpoint
 """
 
 import json
-from typing import List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import httpx
 
+import litellm
 from litellm import EmbeddingResponse
-from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler, HTTPHandler
+from litellm.llms.custom_httpx.http_handler import (
+    AsyncHTTPHandler,
+    HTTPHandler,
+    get_async_httpx_client,
+)
 from litellm.types.llms.openai import EmbeddingInput
 from litellm.types.llms.vertex_ai import (
     VertexAIBatchEmbeddingsRequestBody,
@@ -31,9 +36,9 @@ class GoogleBatchEmbeddings(VertexLLM):
         model_response: EmbeddingResponse,
         custom_llm_provider: Literal["gemini", "vertex_ai"],
         optional_params: dict,
+        logging_obj: Any,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
-        logging_obj=None,
         encoding=None,
         vertex_project=None,
         vertex_location=None,
@@ -150,7 +155,10 @@ class GoogleBatchEmbeddings(VertexLLM):
             else:
                 _params["timeout"] = httpx.Timeout(timeout=600.0, connect=5.0)
 
-            async_handler: AsyncHTTPHandler = AsyncHTTPHandler(**_params)  # type: ignore
+            async_handler: AsyncHTTPHandler = get_async_httpx_client(
+                llm_provider=litellm.LlmProviders.VERTEX_AI,
+                params={"timeout": timeout},
+            )
         else:
             async_handler = client  # type: ignore
 
