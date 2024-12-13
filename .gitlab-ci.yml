@@ -103,12 +103,12 @@ add_models:prod:
     - pip install -r custom/scripts/requirements.txt
   script:
     - python custom/scripts/add_models.py
+  when: manual
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - custom/config/models_config.py
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      when: manual
 
 destroy:prod:
   stage: cleanup
