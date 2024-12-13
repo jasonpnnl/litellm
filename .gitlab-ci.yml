@@ -10,6 +10,7 @@ stages:
   - provision
   - deploy
   - cleanup
+  - add-models
 
 before_script:
   - echo $AZD_AZURE_AD_CLIENT_ID
@@ -41,6 +42,17 @@ deploy:dev:
     - docker build -t $DOCKER_IMAGE_NAME .
     - docker tag $DOCKER_IMAGE_NAME $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
     - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+  when: manual
+
+add_models:dev:
+  stage: add-models
+  environment: dev
+  image: python:3.11
+  before_script: # Override global before_script to avoid azure login
+    - pip install --upgrade pip
+    - pip install -r custom/scripts/requirements.txt
+  script:
+    - python custom/scripts/add_models.py
   when: manual
 
 destroy:dev:
@@ -81,6 +93,22 @@ deploy:prod:
     - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+add_models:prod:
+  stage: add-models
+  environment: prod
+  image: python:3.11
+  before_script: # Override global before_script to avoid azure login
+    - pip install --upgrade pip
+    - pip install -r custom/scripts/requirements.txt
+  script:
+    - python custom/scripts/add_models.py
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - custom/config/models_config.py
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
 
 destroy:prod:
   stage: cleanup
