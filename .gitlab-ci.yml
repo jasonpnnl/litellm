@@ -108,7 +108,10 @@ add_models:prod:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - custom/config/models_config.py
+      needs: [deploy:prod]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      needs: []
 
 destroy:prod:
   stage: cleanup
