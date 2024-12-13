@@ -93,6 +93,7 @@ deploy:prod:
     - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
 
 add_models:prod:
   stage: add-models
@@ -108,10 +109,10 @@ add_models:prod:
       changes:
         - custom/config/models_config.py
       when: on_success
-      needs: ["deploy:prod"]
+      needs:
+        - deploy:prod
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
-      needs: []
 
 destroy:prod:
   stage: cleanup
