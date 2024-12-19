@@ -107,7 +107,7 @@ add_models:prod:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
       changes:
-        - custom/config/models_config.py
+        - custom/scripts/models_config.py
       when: on_success
       needs:
         - deploy:prod
