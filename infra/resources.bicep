@@ -52,7 +52,7 @@ var linux_fx_version = 'DOCKER|${latestImage}'
 var keyVaultSecretsUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var containerRegistryAcrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var proxyBaseUrl = (name == 'aiendpointdev' ? 'https://ai-incubator-dev-api.pnnl.gov/' : name == 'aiendpointprod' ? 'https://ai-incubator-api.pnnl.gov/' : 'https://${webapp_name}.azurewebsites.net/')
-var appServicePlanSku = name == 'aiendpointprod' ? 'P0v3' : 'B1'
+var appServicePlanSku = name == 'aiendpointprod' ? 'P1v3' : 'B1'
 
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
@@ -127,14 +127,15 @@ resource existingPNNLSubnet 'Microsoft.Network/virtualNetworks/subnets@2021-02-0
 // }
 
 
-
+var postgresSku = name == 'aiendpointprod' ? 'Standard_D2ds_v4' : 'Standard_B1ms'
+var postgresSkuTier = name == 'aiendpointprod' ? 'GeneralPurpose' : 'Burstable'
 resource postgresDB 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' = {
   location: location
   tags: {}
   name: '${abbrs.dBforPostgreSQLServers}${resourceToken}'
   sku: {
-    name: 'Standard_B1ms'
-    tier: 'Burstable'
+    name: postgresSku
+    tier: postgresSkuTier
   }
   properties: {
     replica: {
