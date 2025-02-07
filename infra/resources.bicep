@@ -54,6 +54,10 @@ var containerRegistryAcrPullRole = subscriptionResourceId('Microsoft.Authorizati
 var proxyBaseUrl = (name == 'aiendpointdev' ? 'https://ai-incubator-dev-api.pnnl.gov/' : name == 'aiendpointprod' ? 'https://ai-incubator-api.pnnl.gov/' : 'https://${webapp_name}.azurewebsites.net/')
 var appServicePlanSku = name == 'aiendpointprod' ? 'P1v3' : 'B1'
 
+var la_workspace_name = toLower('${name}-la-${resourceToken}')
+var diagnostic_setting_name = 'AppServiceConsoleLogs'
+var actiongroup_name = toLower('${name}-ag-${resourceToken}')
+var alert_email = 'generativeai-alerts@pnnl.gov'
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: appservice_name
@@ -314,6 +318,100 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
   identity: { type: 'SystemAssigned'}
 }
 
+resource emailAction 'Microsoft.Insights/actionGroups@2023-09-01-preview' = {
+  name: actiongroup_name
+  location: 'Global'
+  properties: {
+    groupShortName: 'GenAI Team'
+    enabled: true
+    emailReceivers: [
+      {
+        name: 'Generative AI Team'
+        emailAddress: alert_email
+        useCommonAlertSchema: true
+      }
+    ]
+  }
+}
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2021-12-01-preview' = {
+  name: la_workspace_name
+  location: location
+  properties: {
+    retentionInDays: 30
+  }
+}
+
+resource webDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: diagnostic_setting_name
+  scope: webApp
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        category: 'AppServiceConsoleLogs'
+        enabled: true
+      }
+      {
+        category: 'AppServiceHTTPLogs'
+        enabled: true
+      }
+    ]
+    metrics: []
+  }
+}
+
+resource alertConnectionAttemptsFailed 'Microsoft.Insights/scheduledQueryRules@2024-01-01-preview' = {
+  name: toLower('${name}-alert-connectionattemptsfailed-${resourceToken}')
+  location: location
+  kind: 'LogAlert'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    description: 'Alert when "All connection attempts failed" errors occur in App Service logs.'
+    severity: 0
+    enabled: true
+    evaluationFrequency: 'PT5M'
+    scopes: [
+      webApp.id
+    ]
+    targetResourceTypes: [
+      'Microsoft.Web/sites'
+    ]
+    windowSize: 'PT5M'
+    criteria: {
+      allOf: [
+        {
+          query: 'AppServiceConsoleLogs\n| where ResultDescription contains "All connection attempts failed"\n'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: true
+    actions: {
+      actionGroups: [
+        emailAction.id
+      ]
+    }
+  }
+}
+
+resource logAnalyticsReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(alertConnectionAttemptsFailed.id, 'LogAnalyticsReader')
+  scope: webApp
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '73c42c96-874c-492b-b04d-ab87d138a893') // Log Analytics Reader role ID (see https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#analytics)
+    principalId: alertConnectionAttemptsFailed.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
 
 // resource authSettings 'Microsoft.Web/sites/config@2022-09-01' = {
 //   name: 'authsettingsV2'
