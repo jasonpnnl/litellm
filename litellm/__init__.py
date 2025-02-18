@@ -295,7 +295,7 @@ priority_reservation: Optional[Dict[str, float]] = None
 REPEATED_STREAMING_CHUNK_LIMIT = 100  # catch if model starts looping the same chunk while streaming. Uses high default to prevent false positives.
 
 #### Networking settings ####
-request_timeout: float = 6000  # time in seconds
+request_timeout: float = float(os.getenv("LITELLM_REQUEST_TIMEOUT", 6000))  # time in seconds
 force_ipv4: bool = (
     False  # when True, litellm will force ipv4 for all LLM requests. Some users have seen httpx ConnectionError when using ipv6.
 )
