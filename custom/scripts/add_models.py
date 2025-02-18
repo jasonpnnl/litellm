@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import requests
+import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 
