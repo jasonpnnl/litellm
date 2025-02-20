@@ -1,14 +1,9 @@
 model_list:
-  - model_name: gpt-4o
+  - model_name: fake-openai-endpoint
     litellm_params:
-      model: openai/gpt-4o
+      model: openai/my-fake-model
+      api_key: my-fake-key
       api_base: https://exampleopenaiendpoint-production.up.railway.app/
-  - model_name: anthropic/*
-    litellm_params:
-      model: anthropic/fake
-      api_base: https://exampleanthropicendpoint-production.up.railway.app/
+general_settings:
+  store_model_in_db: true
 
-
-
-litellm_settings:
-  callbacks: ["datadog"] 
