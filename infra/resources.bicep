@@ -224,6 +224,26 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
           value:'@Microsoft.KeyVault(VaultName=${kv.name};SecretName=${kv::POSTGRES_DB_URL.name})'
         }
         {
+          name: 'DATABASE_CONNECTION_POOL_LIMIT'
+            value: name == 'aiendpointdev' ? '150' : '400'
+        }
+        {
+          name: 'DATABASE_CONNECTION_POOL_TIMEOUT'
+          value: '60'
+        }
+        {
+          name: 'PROXY_BATCH_WRITE_AT'
+          value: '60'
+        }
+        {
+          name: 'LITELLM_REQUEST_TIMEOUT'
+          value: '600'
+        }
+        {
+          name: 'PRISMA_PY_DEBUG'
+            value: '1'
+        }
+        {
           name: 'STORE_MODEL_IN_DB'
           value: 'True'
         }

@@ -447,8 +447,8 @@ def run_server(  # noqa: PLR0915
                 "uvicorn, gunicorn needs to be imported. Run - `pip install 'litellm[proxy]'`"
             )
 
-        db_connection_pool_limit = 100
-        db_connection_timeout = 60
+        db_connection_pool_limit = int(os.getenv("DATABASE_CONNECTION_POOL_LIMIT", "200"))
+        db_connection_timeout = int(os.getenv("DATABASE_CONNECTION_POOL_TIMEOUT", "60"))
         general_settings = {}
         ### GET DB TOKEN FOR IAM AUTH ###
 

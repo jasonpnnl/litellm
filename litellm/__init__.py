@@ -275,7 +275,8 @@ custom_prometheus_metadata_labels: List[str] = []
 #### REQUEST PRIORITIZATION ####
 priority_reservation: Optional[Dict[str, float]] = None
 
-
+#### Networking settings ####
+request_timeout: float = float(os.getenv("LITELLM_REQUEST_TIMEOUT", 6000))  # time in seconds
 force_ipv4: bool = (
     False  # when True, litellm will force ipv4 for all LLM requests. Some users have seen httpx ConnectionError when using ipv6.
 )
