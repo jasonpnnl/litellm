@@ -8,11 +8,13 @@ from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union, cast, get_a
 import httpx
 
 import litellm
+from litellm._logging import verbose_logger
 from litellm.litellm_core_utils.core_helpers import map_finish_reason
 from litellm.litellm_core_utils.logging_utils import track_llm_api_timing
 from litellm.litellm_core_utils.prompt_templates.factory import (
     cohere_message_pt,
     custom_prompt,
+    deepseek_r1_pt,
     prompt_factory,
 )
 from litellm.llms.base_llm.chat.transformation import BaseConfig, BaseLLMException
@@ -25,7 +27,7 @@ from litellm.llms.custom_httpx.http_handler import (
 )
 from litellm.types.llms.openai import AllMessageValues
 from litellm.types.utils import ModelResponse, Usage
-from litellm.utils import CustomStreamWrapper, get_secret
+from litellm.utils import CustomStreamWrapper
 
 if TYPE_CHECKING:
     from litellm.litellm_core_utils.litellm_logging import Logging as _LiteLLMLoggingObj
@@ -71,7 +73,7 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
 
     def get_complete_url(
         self,
-        api_base: str,
+        api_base: Optional[str],
         model: str,
         optional_params: dict,
         stream: Optional[bool] = None,
@@ -86,13 +88,15 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
             optional_params=optional_params,
         )
         ### SET RUNTIME ENDPOINT ###
-        aws_bedrock_runtime_endpoint = optional_params.pop(
+        aws_bedrock_runtime_endpoint = optional_params.get(
             "aws_bedrock_runtime_endpoint", None
         )  # https://bedrock-runtime.{region_name}.amazonaws.com
         endpoint_url, proxy_endpoint_url = self.get_runtime_endpoint(
             api_base=api_base,
             aws_bedrock_runtime_endpoint=aws_bedrock_runtime_endpoint,
-            aws_region_name=self._get_aws_region_name(optional_params=optional_params),
+            aws_region_name=self._get_aws_region_name(
+                optional_params=optional_params, model=model
+            ),
         )
 
         if (stream is not None and stream is True) and provider != "ai21":
@@ -112,6 +116,7 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
         optional_params: dict,
         request_data: dict,
         api_base: str,
+        model: Optional[str] = None,
         stream: Optional[bool] = None,
         fake_stream: Optional[bool] = None,
     ) -> dict:
@@ -124,16 +129,18 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
 
         ## CREDENTIALS ##
         # pop aws_secret_access_key, aws_access_key_id, aws_session_token, aws_region_name from kwargs, since completion calls fail with them
-        extra_headers = optional_params.pop("extra_headers", None)
-        aws_secret_access_key = optional_params.pop("aws_secret_access_key", None)
-        aws_access_key_id = optional_params.pop("aws_access_key_id", None)
-        aws_session_token = optional_params.pop("aws_session_token", None)
-        aws_role_name = optional_params.pop("aws_role_name", None)
-        aws_session_name = optional_params.pop("aws_session_name", None)
-        aws_profile_name = optional_params.pop("aws_profile_name", None)
-        aws_web_identity_token = optional_params.pop("aws_web_identity_token", None)
-        aws_sts_endpoint = optional_params.pop("aws_sts_endpoint", None)
-        aws_region_name = self._get_aws_region_name(optional_params)
+        extra_headers = optional_params.get("extra_headers", None)
+        aws_secret_access_key = optional_params.get("aws_secret_access_key", None)
+        aws_access_key_id = optional_params.get("aws_access_key_id", None)
+        aws_session_token = optional_params.get("aws_session_token", None)
+        aws_role_name = optional_params.get("aws_role_name", None)
+        aws_session_name = optional_params.get("aws_session_name", None)
+        aws_profile_name = optional_params.get("aws_profile_name", None)
+        aws_web_identity_token = optional_params.get("aws_web_identity_token", None)
+        aws_sts_endpoint = optional_params.get("aws_sts_endpoint", None)
+        aws_region_name = self._get_aws_region_name(
+            optional_params=optional_params, model=model
+        )
 
         credentials: Credentials = self.get_credentials(
             aws_access_key_id=aws_access_key_id,
@@ -166,7 +173,7 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
 
         return dict(request.headers)
 
-    def transform_request(  # noqa: PLR0915
+    def transform_request(
         self,
         model: str,
         messages: List[AllMessageValues],
@@ -177,11 +184,15 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
         ## SETUP ##
         stream = optional_params.pop("stream", None)
         custom_prompt_dict: dict = litellm_params.pop("custom_prompt_dict", None) or {}
+        hf_model_name = litellm_params.get("hf_model_name", None)
 
         provider = self.get_bedrock_invoke_provider(model)
 
         prompt, chat_history = self.convert_messages_to_prompt(
-            model, messages, provider, custom_prompt_dict
+            model=hf_model_name or model,
+            messages=messages,
+            provider=provider,
+            custom_prompt_dict=custom_prompt_dict,
         )
         inference_params = copy.deepcopy(optional_params)
         inference_params = {
@@ -224,6 +235,14 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
                 litellm_params=litellm_params,
                 headers=headers,
             )
+        elif provider == "nova":
+            return litellm.AmazonInvokeNovaConfig().transform_request(
+                model=model,
+                messages=messages,
+                optional_params=optional_params,
+                litellm_params=litellm_params,
+                headers=headers,
+            )
         elif provider == "ai21":
             ## LOAD CONFIG
             config = litellm.AmazonAI21Config.get_config()
@@ -257,7 +276,7 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
                 "inputText": prompt,
                 "textGenerationConfig": inference_params,
             }
-        elif provider == "meta" or provider == "llama":
+        elif provider == "meta" or provider == "llama" or provider == "deepseek_r1":
             ## LOAD CONFIG
             config = litellm.AmazonLlamaConfig.get_config()
             for k, v in config.items():
@@ -297,6 +316,10 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
             raise BedrockError(
                 message=raw_response.text, status_code=raw_response.status_code
             )
+        verbose_logger.debug(
+            "bedrock invoke response % s",
+            json.dumps(completion_response, indent=4, default=str),
+        )
         provider = self.get_bedrock_invoke_provider(model)
         outputText: Optional[str] = None
         try:
@@ -322,11 +345,23 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
                     api_key=api_key,
                     json_mode=json_mode,
                 )
+            elif provider == "nova":
+                return litellm.AmazonInvokeNovaConfig().transform_response(
+                    model=model,
+                    raw_response=raw_response,
+                    model_response=model_response,
+                    logging_obj=logging_obj,
+                    request_data=request_data,
+                    messages=messages,
+                    optional_params=optional_params,
+                    litellm_params=litellm_params,
+                    encoding=encoding,
+                )
             elif provider == "ai21":
                 outputText = (
                     completion_response.get("completions")[0].get("data").get("text")
                 )
-            elif provider == "meta" or provider == "llama":
+            elif provider == "meta" or provider == "llama" or provider == "deepseek_r1":
                 outputText = completion_response["generation"]
             elif provider == "mistral":
                 outputText = completion_response["outputs"][0]["text"]
@@ -503,6 +538,7 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
         1. model=invoke/anthropic.claude-3-5-sonnet-20240620-v1:0 -> Returns `anthropic`
         2. model=anthropic.claude-3-5-sonnet-20240620-v1:0 -> Returns `anthropic`
         3. model=llama/arn:aws:bedrock:us-east-1:086734376398:imported-model/r4c4kewx2s0n -> Returns `llama`
+        4. model=us.amazon.nova-pro-v1:0 -> Returns `nova`
         """
         if model.startswith("invoke/"):
             model = model.replace("invoke/", "", 1)
@@ -515,6 +551,10 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
         provider = AmazonInvokeConfig._get_provider_from_model_path(model)
         if provider is not None:
             return provider
+
+        # check if provider == "nova"
+        if "nova" in model:
+            return "nova"
         return None
 
     @staticmethod
@@ -551,43 +591,22 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
 
         modelId = modelId.replace("invoke/", "", 1)
         if provider == "llama" and "llama/" in modelId:
-            modelId = self._get_model_id_for_llama_like_model(modelId)
+            modelId = self._get_model_id_from_model_with_spec(modelId, spec="llama")
+        elif provider == "deepseek_r1" and "deepseek_r1/" in modelId:
+            modelId = self._get_model_id_from_model_with_spec(
+                modelId, spec="deepseek_r1"
+            )
         return modelId
 
-    def _get_aws_region_name(self, optional_params: dict) -> str:
-        """
-        Get the AWS region name from the environment variables
-        """
-        aws_region_name = optional_params.pop("aws_region_name", None)
-        ### SET REGION NAME ###
-        if aws_region_name is None:
-            # check env #
-            litellm_aws_region_name = get_secret("AWS_REGION_NAME", None)
-
-            if litellm_aws_region_name is not None and isinstance(
-                litellm_aws_region_name, str
-            ):
-                aws_region_name = litellm_aws_region_name
-
-            standard_aws_region_name = get_secret("AWS_REGION", None)
-            if standard_aws_region_name is not None and isinstance(
-                standard_aws_region_name, str
-            ):
-                aws_region_name = standard_aws_region_name
-
-        if aws_region_name is None:
-            aws_region_name = "us-west-2"
-
-        return aws_region_name
-
-    def _get_model_id_for_llama_like_model(
+    def _get_model_id_from_model_with_spec(
         self,
         model: str,
+        spec: str,
     ) -> str:
         """
         Remove `llama` from modelID since `llama` is simply a spec to follow for custom bedrock models
         """
-        model_id = model.replace("llama/", "")
+        model_id = model.replace(spec + "/", "")
         return self.encode_model_id(model_id=model_id)
 
     def encode_model_id(self, model_id: str) -> str:
@@ -634,6 +653,8 @@ class AmazonInvokeConfig(BaseConfig, BaseAWSLLM):
             )
         elif provider == "cohere":
             prompt, chat_history = cohere_message_pt(messages=messages)
+        elif provider == "deepseek_r1":
+            prompt = deepseek_r1_pt(messages=messages)
         else:
             prompt = ""
             for message in messages:
