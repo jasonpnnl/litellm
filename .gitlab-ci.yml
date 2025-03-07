@@ -105,7 +105,7 @@ add_models:prod:
   script:
     - python custom/scripts/add_models.py
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_MESSAGE =~ /^Merge/'
       changes:
         - custom/scripts/models_config.py
       when: on_success
