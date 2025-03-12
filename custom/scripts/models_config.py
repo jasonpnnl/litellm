@@ -2,6 +2,28 @@ from custom.scripts.utils import require_env_var
 
 models = [
     {
+        "model_name": "o3-mini-project",
+        "litellm_params": {
+            "model": "azure/o3-mini", # note the model name starts with "us." because this model requires using an inference profile
+            "api_base": require_env_var("PROJECT_AZURE_API_BASE"),
+            "api_key": require_env_var("PROJECT_AZURE_API_KEY"),
+            "api_version": "2024-12-01-preview",
+            "input_cost_per_token": 0.00000121,
+            "output_cost_per_token": 0.00000484
+        }
+    },
+    {
+        "model_name": "o3-mini-birthright",
+        "litellm_params": {
+            "model": "azure/o3-mini",
+            "api_base": require_env_var("BIRTHRIGHT_AZURE_API_BASE"),
+            "api_key": require_env_var("BIRTHRIGHT_AZURE_API_KEY"),
+            "api_version": "2024-12-01-preview",
+            "input_cost_per_token": 0.00000121,
+            "output_cost_per_token": 0.00000484
+        }
+    },
+    {
         "model_name": "claude-3-7-sonnet-20250219-v1-openwebui",
         "litellm_params": {
             "model": "us.anthropic.claude-3-7-sonnet-20250219-v1:0", # note the model name starts with "us." because this model requires using an inference profile
