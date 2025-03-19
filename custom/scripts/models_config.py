@@ -112,5 +112,32 @@ models = [
             "aws_secret_access_key": require_env_var("BIRTHRIGHT_AWS_SECRET_ACCESS_KEY"),
             "aws_region_name": "us-west-2"
         }
+    },
+    {
+        "model_name": "nova-pro-v1-openwebui",
+        "litellm_params": {
+            "model": "us.amazon.nova-pro-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "nova-lite-v1-openwebui",
+        "litellm_params": {
+            "model": "us.amazon.nova-lite-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "nova-micro-v1-openwebui",
+        "litellm_params": {
+            "model": "us.amazon.nova-micro-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
     }
 ]
