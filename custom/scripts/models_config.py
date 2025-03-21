@@ -4,7 +4,7 @@ models = [
     {
         "model_name": "o3-mini-project",
         "litellm_params": {
-            "model": "azure/o3-mini", # note the model name starts with "us." because this model requires using an inference profile
+            "model": "azure/o3-mini",
             "api_base": require_env_var("PROJECT_AZURE_API_BASE"),
             "api_key": require_env_var("PROJECT_AZURE_API_KEY"),
             "api_version": "2024-12-01-preview",
@@ -138,6 +138,17 @@ models = [
             "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
             "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
             "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "o1-openwebui",
+        "litellm_params": {
+            "model": "azure/o1",
+            "api_base": require_env_var("AZURE_OPENAI3_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI3_API_KEY"),
+            "api_version": "2024-12-01-preview",
+            "input_cost_per_token": 0.00001650,
+            "output_cost_per_token": 0.00006600
         }
     }
 ]
