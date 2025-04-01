@@ -51,6 +51,34 @@ models = [
         }
     },
     {
+        "model_name": "claude-3-7-sonnet-thinking-1024-20250219-v1-openwebui",
+        "litellm_params": {
+            "model": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 1024
+            },
+            "merge_reasoning_content_in_choices": True
+        }
+    },
+    {
+        "model_name": "claude-3-7-sonnet-thinking-16000-20250219-v1-openwebui",
+        "litellm_params": {
+            "model": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 16000
+            },
+            "merge_reasoning_content_in_choices": True
+        }
+    },
+    {
         "model_name": "claude-3-5-sonnet-20241022-v2-openwebui",
         "litellm_params": {
             "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
