@@ -71,8 +71,6 @@ export default function SpendLogsTable({
 
   const queryClient = useQueryClient();
 
-  const queryClient = useQueryClient();
-
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
