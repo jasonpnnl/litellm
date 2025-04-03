@@ -49,4 +49,5 @@ if [ $? -eq 0 ]; then
   echo "Deployment completed."
 else
   echo "Build failed. Deployment aborted."
+  exit 2
 fi

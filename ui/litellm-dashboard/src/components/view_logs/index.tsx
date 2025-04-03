@@ -70,6 +70,7 @@ export default function SpendLogsTable({
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
   // Close dropdown when clicking outside
   useEffect(() => {
