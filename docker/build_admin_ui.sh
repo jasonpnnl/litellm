@@ -43,7 +43,7 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
 source ~/.nvm/nvm.sh
 nvm install v18.17.0
 nvm use v18.17.0
-npm install -g npm
+# npm install -g npm  # PNNL: this wasn't working; we just didn't notice til we used bash strict mode
 
 # copy _enterprise.json from this directory to /ui/litellm-dashboard, and rename it to ui_colors.json
 cp enterprise/enterprise_ui/enterprise_colors.json ui/litellm-dashboard/ui_colors.json
