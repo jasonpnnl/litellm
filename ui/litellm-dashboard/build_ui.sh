@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euxo pipefail
+
 # Check if nvm is not installed
 if ! command -v nvm &> /dev/null; then
   # Install nvm
@@ -49,4 +51,5 @@ if [ $? -eq 0 ]; then
   echo "Deployment completed."
 else
   echo "Build failed. Deployment aborted."
+  exit 2
 fi
