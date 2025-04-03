@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euxo pipefail
+
 # Check if nvm is not installed
 if ! command -v nvm &> /dev/null; then
   # Install nvm

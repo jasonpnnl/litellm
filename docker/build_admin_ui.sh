@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# # try except this script
-# set -e
+set -euxo pipefail
 
 # print current dir 
 echo
