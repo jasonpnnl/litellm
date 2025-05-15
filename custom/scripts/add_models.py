@@ -34,7 +34,7 @@ def check_model_exists(model_name):
                 models = response_json["data"]
                 for model in models:
                     if model.get("model_name") == model_name:
-                        return True
+                        return model.get("model_info", {}).get("id")
                 return False
             else:
                 raise Exception(f"Unexpected response format: {response_json}")
@@ -60,14 +60,34 @@ def add_model_to_litellm(model):
             raise Exception(f"Failed to add model. Status code: {response.status_code}. Response: {response.text}")
     except Exception as e:
         raise Exception(f"Error adding model {model_name}: {e}")
+    
+def update_model(model, model_id):
+    model_name = model["model_name"]
+    try:
+        response = requests.patch(
+            f"{LITELLM_API_URI}/model/{model_id}/update",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {LITELLM_MASTER_KEY}"
+            },
+            data=json.dumps(model)
+        )
+        if response.status_code == 200:
+            print(f"Model {model_name} updated successfully.")
+        else:
+            raise Exception(f"Failed to update model. Status code: {response.status_code}. Response: {response.text}")
+    except Exception as e:
+        raise Exception(f"Error updating model {model_name}: {e}")
 
 if __name__ == "__main__":
     # Load model configurations
     try:
         for model in models:
             model_name = model.get("model_name")
-            if check_model_exists(model_name):
-                print(f"Model {model_name} already exists. Skipping.")
+            model_id = check_model_exists(model_name)
+            if model_id:
+                print(f"Model {model_name} already exists. Updating.")
+                update_model(model, model_id)
                 continue
             print(f"Adding model: {model_name}")
             add_model_to_litellm(model)
