@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 import httpx
 
 import litellm
+from litellm.constants import REPLICATE_MODEL_NAME_WITH_ID_LENGTH
 from litellm.secret_managers.main import get_secret, get_secret_str
 
 from ..types.router import LiteLLM_Params
@@ -100,7 +101,6 @@ def get_llm_provider(  # noqa: PLR0915
 
     Return model, custom_llm_provider, dynamic_api_key, api_base
     """
-
     try:
         ## IF LITELLM PARAMS GIVEN ##
         if litellm_params is not None:
@@ -215,6 +215,12 @@ def get_llm_provider(  # noqa: PLR0915
                     elif endpoint == "api.galadriel.com/v1":
                         custom_llm_provider = "galadriel"
                         dynamic_api_key = get_secret_str("GALADRIEL_API_KEY")
+                    elif endpoint == "https://api.llama.com/compat/v1":
+                        custom_llm_provider = "meta_llama"
+                        dynamic_api_key = api_key or get_secret_str("LLAMA_API_KEY")
+                    elif endpoint == litellm.NscaleConfig.API_BASE_URL:
+                        custom_llm_provider = "nscale"
+                        dynamic_api_key = litellm.NscaleConfig.get_api_key()
 
                     if api_base is not None and not isinstance(api_base, str):
                         raise Exception(
@@ -256,10 +262,13 @@ def get_llm_provider(  # noqa: PLR0915
         elif model in litellm.cohere_chat_models:
             custom_llm_provider = "cohere_chat"
         ## replicate
-        elif model in litellm.replicate_models or (":" in model and len(model) > 64):
+        elif model in litellm.replicate_models or (
+            ":" in model and len(model) > REPLICATE_MODEL_NAME_WITH_ID_LENGTH
+        ):
             model_parts = model.split(":")
             if (
-                len(model_parts) > 1 and len(model_parts[1]) == 64
+                len(model_parts) > 1
+                and len(model_parts[1]) == REPLICATE_MODEL_NAME_WITH_ID_LENGTH
             ):  ## checks if model name has a 64 digit code - e.g. "meta/llama-2-70b-chat:02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3"
                 custom_llm_provider = "replicate"
             elif model in litellm.replicate_models:
@@ -441,6 +450,13 @@ def _get_openai_compatible_provider_info(  # noqa: PLR0915
             or "https://api.sambanova.ai/v1"
         )  # type: ignore
         dynamic_api_key = api_key or get_secret_str("SAMBANOVA_API_KEY")
+    elif custom_llm_provider == "meta_llama":
+        api_base = (
+            api_base
+            or get_secret("LLAMA_API_BASE")
+            or "https://api.llama.com/compat/v1"
+        )  # type: ignore
+        dynamic_api_key = api_key or get_secret_str("LLAMA_API_KEY")
     elif (custom_llm_provider == "ai21_chat") or (
         custom_llm_provider == "ai21" and model in litellm.ai21_chat_models
     ):
@@ -471,6 +487,14 @@ def _get_openai_compatible_provider_info(  # noqa: PLR0915
             api_base,
             dynamic_api_key,
         ) = litellm.HostedVLLMChatConfig()._get_openai_compatible_provider_info(
+            api_base, api_key
+        )
+    elif custom_llm_provider == "llamafile":
+        # llamafile is OpenAI compatible.
+        (
+            api_base,
+            dynamic_api_key,
+        ) = litellm.LlamafileChatConfig()._get_openai_compatible_provider_info(
             api_base, api_key
         )
     elif custom_llm_provider == "lm_studio":
@@ -576,6 +600,13 @@ def _get_openai_compatible_provider_info(  # noqa: PLR0915
             or f"https://{get_secret('SNOWFLAKE_ACCOUNT_ID')}.snowflakecomputing.com/api/v2/cortex/inference:complete"
         )  # type: ignore
         dynamic_api_key = api_key or get_secret_str("SNOWFLAKE_JWT")
+    elif custom_llm_provider == "nscale":
+        (
+            api_base,
+            dynamic_api_key,
+        ) = litellm.NscaleConfig()._get_openai_compatible_provider_info(
+            api_base=api_base, api_key=api_key
+        )
 
     if api_base is not None and not isinstance(api_base, str):
         raise Exception("api base needs to be a string. api_base={}".format(api_base))
