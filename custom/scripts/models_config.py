@@ -1,82 +1,82 @@
 from custom.scripts.utils import require_env_var
 
 models = [
-    # OpenWebUI models
+    # OpenWebUI models - note that going forward, OpenWebUI models will have no suffix to simplify the import process
     # Claude models
-    # {
-    #     "model_name": "claude-sonnet-4-20250514-v1-openwebui",
-    #     "litellm_params": {
-    #         "model": "us.anthropic.claude-sonnet-4-20250514-v1:0", # note the model name starts with "us." because this model requires using an inference profile
-    #         "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
-    #         "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
-    #         "aws_region_name": "us-west-2"
-    #     }
-    # },
-    # {
-    #     "model_name": "claude-sonnet-4-thinking-1024-20250514-v1-openwebui",
-    #     "litellm_params": {
-    #         "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
-    #         "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
-    #         "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
-    #         "aws_region_name": "us-west-2",
-    #         "thinking": {
-    #             "type": "enabled",
-    #             "budget_tokens": 1024
-    #         },
-    #         "merge_reasoning_content_in_choices": True
-    #     }
-    # },
-    # {
-    #     "model_name": "claude-sonnet-4-thinking-16000-20250514-v1-openwebui",
-    #     "litellm_params": {
-    #         "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
-    #         "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
-    #         "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
-    #         "aws_region_name": "us-west-2",
-    #         "thinking": {
-    #             "type": "enabled",
-    #             "budget_tokens": 16000
-    #         },
-    #         "merge_reasoning_content_in_choices": True
-    #     }
-    # },
-    # {
-    #     "model_name": "claude-opus-4-20250514-v1-openwebui",
-    #     "litellm_params": {
-    #         "model": "us.anthropic.claude-opus-4-20250514-v1:0", # note the model name starts with "us." because this model requires using an inference profile
-    #         "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
-    #         "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
-    #         "aws_region_name": "us-west-2"
-    #     }
-    # },
-    # {
-    #     "model_name": "claude-opus-4-thinking-1024-20250514-v1-openwebui",
-    #     "litellm_params": {
-    #         "model": "us.anthropic.claude-opus-4-20250514-v1:0",
-    #         "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
-    #         "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
-    #         "aws_region_name": "us-west-2",
-    #         "thinking": {
-    #             "type": "enabled",
-    #             "budget_tokens": 1024
-    #         },
-    #         "merge_reasoning_content_in_choices": True
-    #     }
-    # },
-    # {
-    #     "model_name": "claude-opus-4-thinking-16000-20250514-v1-openwebui",
-    #     "litellm_params": {
-    #         "model": "us.anthropic.claude-opus-4-20250514-v1:0",
-    #         "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
-    #         "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
-    #         "aws_region_name": "us-west-2",
-    #         "thinking": {
-    #             "type": "enabled",
-    #             "budget_tokens": 16000
-    #         },
-    #         "merge_reasoning_content_in_choices": True
-    #     }
-    # },
+    {
+        "model_name": "claude-sonnet-4-20250514-v1",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0", # note the model name starts with "us." because this model requires using an inference profile
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "claude-sonnet-4-thinking-1024-20250514-v1",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 1024
+            },
+            "merge_reasoning_content_in_choices": True
+        }
+    },
+    {
+        "model_name": "claude-sonnet-4-thinking-16000-20250514-v1",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 16000
+            },
+            "merge_reasoning_content_in_choices": True
+        }
+    },
+    {
+        "model_name": "claude-opus-4-20250514-v1",
+        "litellm_params": {
+            "model": "us.anthropic.claude-opus-4-20250514-v1:0", # note the model name starts with "us." because this model requires using an inference profile
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "claude-opus-4-thinking-1024-20250514-v1",
+        "litellm_params": {
+            "model": "us.anthropic.claude-opus-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 1024
+            },
+            "merge_reasoning_content_in_choices": True
+        }
+    },
+    {
+        "model_name": "claude-opus-4-thinking-16000-20250514-v1",
+        "litellm_params": {
+            "model": "us.anthropic.claude-opus-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 16000
+            },
+            "merge_reasoning_content_in_choices": True
+        }
+    },
     {
         "model_name": "claude-3-7-sonnet-20250219-v1-openwebui",
         "litellm_params": {
@@ -112,15 +112,6 @@ models = [
                 "budget_tokens": 16000
             },
             "merge_reasoning_content_in_choices": True
-        }
-    },
-    {
-        "model_name": "claude-3-5-sonnet-20241022-v2-openwebui",
-        "litellm_params": {
-            "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
-            "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
-            "aws_region_name": "us-west-2"
         }
     },
     {
@@ -184,7 +175,7 @@ models = [
             "base_model": "azure/gpt-4.1-2025-04-14",
         }
     },
-    # Project models
+    # Project models - project models have the -project suffix to differentiate them from OpenWebUI models and birthright models have the -birthright suffix
     # OpenAI models
     {
         "model_name": "o3-mini-project",
@@ -209,6 +200,33 @@ models = [
         }
     },
     # Claude models
+    {
+        "model_name": "claude-sonnet-4-20250514-v1-project",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("PROJECT_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("PROJECT_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "claude-sonnet-4-20250514-v1-birthright",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("BIRTHRIGHT_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("BIRTHRIGHT_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "claude-opus-4-20250514-v1-project",
+        "litellm_params": {
+            "model": "us.anthropic.claude-opus-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("PROJECT_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("PROJECT_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-2"
+        }
+    },
     {
         "model_name": "claude-3-7-sonnet-20250219-v1-project",
         "litellm_params": {
