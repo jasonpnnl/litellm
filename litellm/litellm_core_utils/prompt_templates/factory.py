@@ -3041,6 +3041,19 @@ class BedrockConverseMessagesProcessor:
                     )
                 )
                 _assistant_content = assistant_message_block.get("content", None)
+                thinking_blocks = cast(
+                    Optional[List[ChatCompletionThinkingBlock]],
+                    assistant_message_block.get("thinking_blocks"),
+                )
+
+                if thinking_blocks is not None:
+                    converted_thinking_blocks = BedrockConverseMessagesProcessor.translate_thinking_blocks_to_reasoning_content_blocks(
+                        thinking_blocks
+                    )
+                    assistant_content = BedrockConverseMessagesProcessor.add_thinking_blocks_to_assistant_content(
+                        thinking_blocks=converted_thinking_blocks,
+                        assistant_parts=assistant_content,
+                    )
 
                 if _assistant_content is not None and isinstance(
                     _assistant_content, list
@@ -3054,7 +3067,10 @@ class BedrockConverseMessagesProcessor:
                                         cast(ChatCompletionThinkingBlock, element)
                                     ]
                                 )
-                                assistants_parts.extend(thinking_block)
+                                assistants_parts = BedrockConverseMessagesProcessor.add_thinking_blocks_to_assistant_content(
+                                    thinking_blocks=thinking_block,
+                                    assistant_parts=assistants_parts,
+                                )
                             elif element["type"] == "text":
                                 assistants_part = BedrockContentBlock(
                                     text=element["text"]
@@ -3452,6 +3468,15 @@ def make_valid_bedrock_tool_name(input_tool_name: str) -> str:
     return valid_string
 
 
+def add_cache_point_tool_block(tool: dict) -> Optional[BedrockToolBlock]:
+    cache_control = tool.get("cache_control", None)
+    if cache_control is not None:
+        cache_point = cache_control.get("type", "ephemeral")
+        if cache_point == "ephemeral":
+            return {"cachePoint": {"type": "default"}}
+    return None
+
+
 def _bedrock_tools_pt(tools: List) -> List[BedrockToolBlock]:
     """
     OpenAI tools looks like:
@@ -3535,6 +3560,11 @@ def _bedrock_tools_pt(tools: List) -> List[BedrockToolBlock]:
         )
         tool_block = BedrockToolBlock(toolSpec=tool_spec)
         tool_block_list.append(tool_block)
+
+        ## ADD CACHE POINT TOOL BLOCK ##
+        cache_point_tool_block = add_cache_point_tool_block(tool)
+        if cache_point_tool_block is not None:
+            tool_block_list.append(cache_point_tool_block)
 
     return tool_block_list
 
