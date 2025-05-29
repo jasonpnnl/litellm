@@ -25,6 +25,12 @@
       },
       "postgresDbPassword": {
         "value": "${POSTGRES_DB_PASSWORD}"
+      },
+      "langfusePublicKey": {
+        "value": "${LANGFUSE_PUBLIC_KEY}"
+      },
+      "langfuseSecretKey": {
+        "value": "${LANGFUSE_SECRET}"
       }
     }
 }

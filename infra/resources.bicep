@@ -34,6 +34,10 @@ param location string = resourceGroup().location
 
 param tags object = {}
 
+param langfusePublicKey string
+@secure()
+param langfuseSecretKey string
+
 var abbrs = loadJsonContent('./abbreviations.json')
 
 var openai_name = toLower('${name}ai${resourceToken}')
@@ -282,6 +286,18 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'DISABLE_FALLBACK_LOGIN'
           value: 'true'
+        }
+        {
+          name: 'LANGFUSE_HOST'
+          value: 'https://langfuse.aiexplore.pnnl.gov'
+        }
+        {
+          name: 'LANGFUSE_PUBLIC_KEY'
+          value: langfusePublicKey
+        }
+        {
+          name: 'LANGFUSE_SECRET_KEY'
+          value: '@Microsoft.KeyVault(VaultName=${kv.name};SecretName=${kv::LANGFUSE_SECRET_KEY.name})'
         }
       ]
       ipSecurityRestrictionsDefaultAction: 'Deny'
@@ -563,6 +579,14 @@ resource kv 'Microsoft.KeyVault/vaults@2021-06-01-preview' = {
     properties: {
       contentType: 'text/plain'
       value: liteLLMMasterKey
+    }
+  }
+
+  resource LANGFUSE_SECRET_KEY 'secrets' = {
+    name: 'LANGFUSE-SECRET-KEY'
+    properties: {
+      contentType: 'text/plain'
+      value: langfuseSecretKey
     }
   }
 

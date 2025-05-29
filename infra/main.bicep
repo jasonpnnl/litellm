@@ -38,6 +38,10 @@ param appGWSubscriptionId string = '9e44d5e3-fcdd-4192-98fe-feb9e7748478'
 param appGWVNetName string = 'aiexploration2-westus_VNET'
 param appGWRGName string = 'aiexploration2_Restricted'
 
+param langfusePublicKey string
+@secure()
+param langfuseSecretKey string
+
 // Tags that should be applied to all resources.
 // 
 // Note that 'azd-service-name' tags should be applied separately to service host resources.
@@ -98,6 +102,8 @@ module resources 'resources.bicep' = {
     appGWRGName: appGWRGName
     liteLLMMasterKey: liteLLMMasterKey
     postgresDbPassword: postgresDbPassword
+    langfusePublicKey: langfusePublicKey
+    langfuseSecretKey: langfuseSecretKey
   }
 }
 
