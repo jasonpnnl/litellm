@@ -153,6 +153,30 @@ models = [
     },
     # OpenAI models
     {
+        "model_name": "o3",
+        "litellm_params": {
+            "model": "azure/o3",
+            "api_base": require_env_var("AZURE_OPENAI3_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI3_API_KEY"),
+            "api_version": "2025-04-01-preview",
+        },
+        "model_info": {
+            "base_model": "azure/o3-2025-04-16",
+        }
+    },
+    {
+        "model_name": "o4-mini",
+        "litellm_params": {
+            "model": "azure/o4-mini",
+            "api_base": require_env_var("AZURE_OPENAI3_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI3_API_KEY"),
+            "api_version": "2025-04-01-preview",
+        },
+        "model_info": {
+            "base_model": "azure/o4-mini-2025-04-16",
+        }
+    },
+    {
         "model_name": "o1-openwebui",
         "litellm_params": {
             "model": "azure/o1",
