@@ -177,17 +177,6 @@ models = [
         }
     },
     {
-        "model_name": "o1-openwebui",
-        "litellm_params": {
-            "model": "azure/o1",
-            "api_base": require_env_var("AZURE_OPENAI3_API_BASE"),
-            "api_key": require_env_var("AZURE_OPENAI3_API_KEY"),
-            "api_version": "2024-12-01-preview",
-            "input_cost_per_token": 0.00001650,
-            "output_cost_per_token": 0.00006600
-        }
-    },
-    {
         "model_name": "gpt-4.1-openwebui",
         "litellm_params": {
             "model": "azure/gpt-4.1",
