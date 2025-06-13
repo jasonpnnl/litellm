@@ -79,18 +79,63 @@ def update_model(model, model_id):
     except Exception as e:
         raise Exception(f"Error updating model {model_name}: {e}")
 
+def add_models_to_team(team_id: str, model_names: list[str]):
+    """
+    Add models to a team's allowed model list.
+    
+    Args:
+        team_id (str): The team ID to add models to
+        model_names (list): List of model names to add to the team
+    """
+    try:
+        payload = {
+            "team_id": team_id,
+            "models": model_names
+        }
+        
+        response = requests.post(
+            f"{LITELLM_API_URI}/team/model/add",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {LITELLM_MASTER_KEY}"
+            },
+            data=json.dumps(payload)
+        )
+        
+        if response.status_code == 200:
+            print(f"Successfully added models {model_names} to team {team_id}.")
+            return response.json()
+        else:
+            raise Exception(f"Failed to add models to team. Status code: {response.status_code}. Response: {response.text}")
+    except Exception as e:
+        raise Exception(f"Error adding models to team {team_id}: {e}")
+
 if __name__ == "__main__":
     # Load model configurations
     try:
         for model in models:
-            model_name = model.get("model_name")
+            model_name = model["model_name"]
             model_id = check_model_exists(model_name)
+            
             if model_id:
                 print(f"Model {model_name} already exists. Updating.")
                 update_model(model, model_id)
-                continue
-            print(f"Adding model: {model_name}")
-            add_model_to_litellm(model)
+            else:
+                print(f"Adding model: {model_name}")
+                add_model_to_litellm(model)
+            
+            if model_name.endswith("-birthright"):
+                add_models_to_team(
+                    team_id="api-key-depot-birthright-keys",
+                    model_names=[model_name]
+                )
+                
+            if model_name.endswith("-project"):
+                add_models_to_team(
+                    team_id="api-key-depot-project-keys",
+                    model_names=[model_name]
+                )
+                
     except Exception as e:
         print(f"Error: {e}")
         traceback.print_exc()
