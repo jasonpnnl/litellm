@@ -212,6 +212,30 @@ models = [
             "output_cost_per_token": 0.00000484
         }
     },
+    {
+        "model_name": "o4-mini-project",
+        "litellm_params": {
+            "model": "azure/o4-mini",
+            "api_base": require_env_var("PROJECT_AZURE_API_BASE"),
+            "api_key": require_env_var("PROJECT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview",
+        },
+        "model_info": {
+            "base_model": "azure/o4-mini-2025-04-16",
+        }
+    },
+    {
+        "model_name": "o4-mini-birthright",
+        "litellm_params": {
+            "model": "azure/o4-mini",
+            "api_base": require_env_var("BIRTHRIGHT_AZURE_API_BASE"),
+            "api_key": require_env_var("BIRTHRIGHT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview",
+        },
+        "model_info": {
+            "base_model": "azure/o4-mini-2025-04-16",
+        }
+    },
     # Claude models
     {
         "model_name": "claude-sonnet-4-20250514-v1-project",
