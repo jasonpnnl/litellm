@@ -299,6 +299,11 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'LANGFUSE_SECRET_KEY'
           value: '@Microsoft.KeyVault(VaultName=${kv.name};SecretName=${kv::LANGFUSE_SECRET_KEY.name})'
         }
+        // Turn off default verbose and info logs
+        {
+          name: 'LITELLM_LOG_LEVEL'
+          value: 'ERROR'
+        }
       ]
       ipSecurityRestrictionsDefaultAction: 'Deny'
       ipSecurityRestrictions: [
