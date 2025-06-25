@@ -212,6 +212,7 @@ class AsyncHTTPHandler:
         stream: bool = False,
         logging_obj: Optional[LiteLLMLoggingObject] = None,
         files: Optional[RequestFiles] = None,
+        content: Any = None,
     ):
         start_time = time.time()
         try:
@@ -227,6 +228,7 @@ class AsyncHTTPHandler:
                 headers=headers,
                 timeout=timeout,
                 files=files,
+                content=content,
             )
             response = await self.client.send(req, stream=stream)
             response.raise_for_status()
@@ -452,6 +454,7 @@ class AsyncHTTPHandler:
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
         stream: bool = False,
+        content: Any = None,
     ):
         """
         Making POST request for a single connection client.
@@ -459,7 +462,7 @@ class AsyncHTTPHandler:
         Used for retrying connection client errors.
         """
         req = client.build_request(
-            "POST", url, data=data, json=json, params=params, headers=headers  # type: ignore
+            "POST", url, data=data, json=json, params=params, headers=headers, content=content  # type: ignore
         )
         response = await client.send(req, stream=stream)
         response.raise_for_status()
@@ -490,13 +493,9 @@ class AsyncHTTPHandler:
             - Some users have seen httpx ConnectionError when using ipv6 - forcing ipv4 resolves the issue for them
         """
         #########################################################
-        # AIOHTTP TRANSPORT is used by default
-        # httpx_aiohttp is included in litellm docker images and pip when python 3.9+ is used
+        # AIOHTTP TRANSPORT is off by default
         #########################################################
-        if (
-            AsyncHTTPHandler._should_use_aiohttp_transport()
-            and AsyncHTTPHandler.aiohttp_transport_exists()
-        ):
+        if AsyncHTTPHandler._should_use_aiohttp_transport():
             return AsyncHTTPHandler._create_aiohttp_transport(
                 ssl_context=ssl_context, ssl_verify=ssl_verify
             )
@@ -509,20 +508,30 @@ class AsyncHTTPHandler:
     @staticmethod
     def _should_use_aiohttp_transport() -> bool:
         """
-        This is feature flagged for now and is opt in as we roll out to all users.
+        AiohttpTransport is the default transport for litellm.
 
-        Controlled by either
-        - litellm.use_aiohttp_transport or os.getenv("USE_AIOHTTP_TRANSPORT") = "True"
+        Httpx can be used by the following
+            - litellm.disable_aiohttp_transport = True
+            - os.getenv("DISABLE_AIOHTTP_TRANSPORT") = "True"
         """
+        import os
+
         from litellm.secret_managers.main import str_to_bool
 
+        #########################################################
+        # Check if user disabled aiohttp transport
+        ########################################################
         if (
-            str_to_bool(os.getenv("USE_AIOHTTP_TRANSPORT", "False"))
-            or litellm.use_aiohttp_transport
+            litellm.disable_aiohttp_transport is True
+            or str_to_bool(os.getenv("DISABLE_AIOHTTP_TRANSPORT", "False")) is True
         ):
-            verbose_logger.debug("Using AiohttpTransport...")
-            return True
-        return False
+            return False
+
+        #########################################################
+        # Default: Use AiohttpTransport
+        ########################################################
+        verbose_logger.debug("Using AiohttpTransport...")
+        return True
 
     @staticmethod
     def _create_aiohttp_transport(
@@ -537,12 +546,19 @@ class AsyncHTTPHandler:
         """
         from litellm.llms.custom_httpx.aiohttp_transport import LiteLLMAiohttpTransport
 
-        verbose_logger.debug("Creating AiohttpTransport...")
+        #########################################################
+        # If ssl_verify is None, set it to True
+        # TCP Connector does not allow ssl_verify to be None
+        # by default aiohttp sets ssl_verify to True
+        #########################################################
+        if ssl_verify is None:
+            ssl_verify = True
 
+        verbose_logger.debug("Creating AiohttpTransport...")
         return LiteLLMAiohttpTransport(
             client=lambda: ClientSession(
                 connector=TCPConnector(
-                    verify_ssl=ssl_verify or True,
+                    verify_ssl=ssl_verify,
                     ssl_context=ssl_context,
                     local_addr=("0.0.0.0", 0) if litellm.force_ipv4 else None,
                 )
@@ -561,22 +577,6 @@ class AsyncHTTPHandler:
             return AsyncHTTPTransport(local_address="0.0.0.0")
         else:
             return None
-
-    @staticmethod
-    def aiohttp_transport_exists() -> bool:
-        """
-        Returns True if `httpx-aiohttp` is installed.
-
-        `httpx-aiohttp` only supports python 3.9+
-
-        For users on python 3.8, we will use `httpx.AsyncClient` instead of `httpx-aiohttp`.
-        """
-        try:
-            import importlib.util
-
-            return importlib.util.find_spec("httpx_aiohttp") is not None
-        except Exception:
-            return False
 
 
 class HTTPHandler:
