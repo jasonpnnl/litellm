@@ -6747,6 +6747,10 @@ async def fallback_login(request: Request):
     PROXY_BASE_URL should be the your deployed proxy endpoint, e.g. PROXY_BASE_URL="https://litellm-production-7002.up.railway.app/"
     Example:
     """
+    if os.getenv("DISABLE_FALLBACK_LOGIN"):
+        # If set, disable the fallback login by raising an HTTPException
+        raise HTTPException(status_code=403, detail="Fallback login is disabled.")
+
     from litellm.proxy.proxy_server import ui_link
 
     # get url from request
