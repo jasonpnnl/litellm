@@ -1,4 +1,10 @@
+import json
 from custom.scripts.utils import require_env_var
+
+_SA_FILE = require_env_var("GCP_SERVICE_ACCOUNT_JSON")
+
+with open(_SA_FILE) as f:
+    _SA_JSON = json.dumps(json.load(f))
 
 models = [
     # OpenWebUI models - note that going forward, OpenWebUI models will have no suffix to simplify the import process
@@ -153,6 +159,66 @@ models = [
     },
     # OpenAI models
     {
+        "model_name": "whisper-openwebui",
+        "litellm_params": {
+            "model": "azure/whisper",
+            "api_base": require_env_var("AZURE_OPENAI_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/whisper-1"
+        }
+    },
+    {
+        "model_name": "text-embedding-3-large-openwebui",
+        "litellm_params": {
+            "model": "azure/text-embedding-3-large",
+            "api_base": require_env_var("AZURE_OPENAI3_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI3_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/text-embedding-3-large"
+        }
+    },
+    {
+        "model_name": "dall-e-3-openwebui",
+        "litellm_params": {
+            "model": "azure/dall-e-3",
+            "api_base": require_env_var("AZURE_OPENAI2_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI2_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/dall-e-3"
+        }
+    },
+    {
+        "model_name": "gpt-4o-mini-openwebui",
+        "litellm_params": {
+            "model": "azure/gpt-4o-mini",
+            "api_base": require_env_var("AZURE_OPENAI3_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI3_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/us/gpt-4o-mini-2024-07-18",
+        }
+    },
+    {
+        "model_name": "gpt-4o",
+        "litellm_params": {
+            "model": "azure/gpt-4o",
+            "api_base": require_env_var("AZURE_OPENAI3_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI3_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/us/gpt-4o-2024-11-20",
+        }
+    },
+    {
         "model_name": "o3",
         "litellm_params": {
             "model": "azure/o3",
@@ -188,8 +254,87 @@ models = [
             "base_model": "azure/gpt-4.1-2025-04-14",
         }
     },
+    # Gemini models
+    {
+        "model_name": "gemini-2.0-flash-001",
+        "litellm_params": {
+            "model": "gemini-2.0-flash-001",
+            "vertex_project": require_env_var("GCP_PROJECT"),
+            "vertex_location": "us-west1",
+            "vertex_credentials": _SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        },
+    },
+    {
+        "model_name": "gemini-2-5-pro",
+        "litellm_params": {
+            "model": "gemini-2.5-pro",
+            "vertex_project": require_env_var("GCP_PROJECT"),
+            "vertex_location": "us-central1",
+            "vertex_credentials": _SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2-5-flash",
+        "litellm_params": {
+            "model": "gemini-2.5-flash",
+            "vertex_project": require_env_var("GCP_PROJECT"),
+            "vertex_location": "us-central1",
+            "vertex_credentials": _SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
     # Project models - project models have the -project suffix to differentiate them from OpenWebUI models and birthright models have the -birthright suffix
     # OpenAI models
+    {
+        "model_name": "gpt-4o-project",
+        "litellm_params": {
+            "model": "azure/gpt-4o",
+            "api_base": require_env_var("PROJECT_AZURE_API_BASE"),
+            "api_key": require_env_var("PROJECT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/gpt-4o-2024-08-06",
+        }
+    },
+    {
+        "model_name": "gpt-4o-birthright",
+        "litellm_params": {
+            "model": "azure/gpt-4o",
+            "api_base": require_env_var("BIRTHRIGHT_AZURE_API_BASE"),
+            "api_key": require_env_var("BIRTHRIGHT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/gpt-4o-2024-08-06",
+        }   
+    },
+    {
+        "model_name": "text-embedding-3-small-project",
+        "litellm_params": {
+            "model": "azure/text-embedding-3-small",
+            "api_base": require_env_var("PROJECT_AZURE_API_BASE"),
+            "api_key": require_env_var("PROJECT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/text-embedding-3-small"
+        }
+    },
+    {
+        "model_name": "text-embedding-3-small-birthright",
+        "litellm_params": {
+            "model": "azure/text-embedding-3-small",
+            "api_base": require_env_var("BIRTHRIGHT_AZURE_API_BASE"),
+            "api_key": require_env_var("BIRTHRIGHT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/text-embedding-3-small"
+        }
+    },
     {
         "model_name": "o3-mini-project",
         "litellm_params": {

@@ -20,6 +20,7 @@ from custom.scripts.utils import require_env_var
 
 LITELLM_API_URI = require_env_var("LITELLM_API_URI")
 LITELLM_MASTER_KEY = require_env_var("LITELLM_MASTER_KEY")
+LITELLM_OPENWEBUI_TEAM_ID = require_env_var("LITELLM_OPENWEBUI_TEAM_ID")
 
 def check_model_exists(model_name):
     try:
@@ -93,6 +94,7 @@ def add_models_to_team(team_id: str, model_names: list[str]):
             "models": model_names
         }
         
+        # Note that this overwrites the existing models for the team, so all models must be provided in a single call
         response = requests.post(
             f"{LITELLM_API_URI}/team/model/add",
             headers={
@@ -113,6 +115,12 @@ def add_models_to_team(team_id: str, model_names: list[str]):
 if __name__ == "__main__":
     # Load model configurations
     try:
+        # Initialize lists for different teams
+        birthright_models = []
+        project_models = []
+        openwebui_models = []
+        
+        # Process each model (add/update) and categorize by team
         for model in models:
             model_name = model["model_name"]
             model_id = check_model_exists(model_name)
@@ -124,17 +132,32 @@ if __name__ == "__main__":
                 print(f"Adding model: {model_name}")
                 add_model_to_litellm(model)
             
+            # Categorize models by team based on suffix
             if model_name.endswith("-birthright"):
-                add_models_to_team(
-                    team_id="api-key-depot-birthright-keys",
-                    model_names=[model_name]
-                )
-                
-            if model_name.endswith("-project"):
-                add_models_to_team(
-                    team_id="api-key-depot-project-keys",
-                    model_names=[model_name]
-                )
+                birthright_models.append(model_name)
+            elif model_name.endswith("-project"):
+                project_models.append(model_name)
+            else:
+                openwebui_models.append(model_name)
+        
+        # Add models to teams in batches
+        if birthright_models:
+            add_models_to_team(
+                team_id="api-key-depot-birthright-keys",
+                model_names=birthright_models
+            )
+        
+        if project_models:
+            add_models_to_team(
+                team_id="api-key-depot-project-keys",
+                model_names=project_models
+            )
+        
+        if openwebui_models:
+            add_models_to_team(
+                team_id=LITELLM_OPENWEBUI_TEAM_ID,
+                model_names=openwebui_models
+            )
                 
     except Exception as e:
         print(f"Error: {e}")
