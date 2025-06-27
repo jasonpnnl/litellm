@@ -2481,6 +2481,14 @@ class Router:
             The response from the handler function
         """
         handler_name = original_function.__name__
+        function_name = "_ageneric_api_call_with_fallbacks"
+        self._update_kwargs_before_fallbacks(
+            model=model,
+            kwargs=kwargs,
+            metadata_variable_name = _get_router_metadata_variable_name(
+                function_name=function_name
+            )
+        )
         try:
             verbose_router_logger.debug(
                 f"Inside _ageneric_api_call() - handler: {handler_name}, model: {model}; kwargs: {kwargs}"
@@ -2494,7 +2502,7 @@ class Router:
             )
 
             self._update_kwargs_with_deployment(
-                deployment=deployment, kwargs=kwargs, function_name="generic_api_call"
+                deployment=deployment, kwargs=kwargs, function_name=function_name
             )
 
             data = deployment["litellm_params"].copy()
@@ -3065,15 +3073,18 @@ class Router:
             async def try_retrieve_batch(model_name: DeploymentTypedDict):
                 try:
                     model = model_name["litellm_params"].get("model")
+                    data = model_name["litellm_params"].copy()
+                    custom_llm_provider = data.get("custom_llm_provider")
                     if model is None:
                         raise Exception(
                             f"Model not found in litellm_params for deployment: {model_name}"
                         )
                     # Update kwargs with the current model name or any other model-specific adjustments
                     ## SET CUSTOM PROVIDER TO SELECTED DEPLOYMENT ##
-                    _, custom_llm_provider, _, _ = get_llm_provider(  # type: ignore
-                        model=model
-                    )
+                    if not custom_llm_provider:
+                        _, custom_llm_provider, _, _ = get_llm_provider(  # type: ignore
+                            model=model
+                        )
                     new_kwargs = copy.deepcopy(kwargs)
                     self._update_kwargs_with_deployment(
                         deployment=cast(dict, model_name),
@@ -3081,10 +3092,18 @@ class Router:
                         function_name="aretrieve_batch",
                     )
                     new_kwargs.pop("custom_llm_provider", None)
+                    data.pop("custom_llm_provider", None)
                     return await litellm.aretrieve_batch(
-                        custom_llm_provider=custom_llm_provider, **new_kwargs  # type: ignore
+                        **{
+                            **data,
+                            "custom_llm_provider": custom_llm_provider,
+                            **new_kwargs,  # type: ignore
+                        },
                     )
                 except Exception as e:
+                    import traceback
+
+                    traceback.print_exc()
                     receieved_exceptions.append(e)
                     return None
 
@@ -3196,6 +3215,11 @@ class Router:
         original_function: Callable,
         **kwargs,
     ):
+        # update kwargs with model_group
+        self._update_kwargs_before_fallbacks(
+            model=kwargs.get("model", ""),
+            kwargs=kwargs,
+        )
         if kwargs.get("model") and self.get_model_list(model_name=kwargs["model"]):
             deployment = await self.async_get_available_deployment(
                 model=kwargs["model"],
