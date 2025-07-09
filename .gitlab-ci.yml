@@ -11,6 +11,7 @@ stages:
   - deploy
   - cleanup
   - add-models
+  - manage-customer-budgets
 
 before_script:
   - echo $AZD_AZURE_AD_CLIENT_ID
@@ -53,6 +54,17 @@ add_models:dev:
     - pip install -r custom/scripts/requirements.txt
   script:
     - python custom/scripts/add_models.py
+  when: manual
+
+manage_customer_budgets:dev:
+  stage: manage-customer-budgets
+  environment: dev
+  image: python:3.11
+  before_script: # Override global before_script to avoid azure login
+    - pip install --upgrade pip
+    - pip install -r custom/scripts/requirements.txt
+  script:
+    - python custom/scripts/manage_customer_budgets.py
   when: manual
 
 destroy:dev:
@@ -111,6 +123,19 @@ add_models:prod:
       when: on_success
       needs:
         - deploy:prod
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+
+manage_customer_budgets:prod:
+  stage: manage-customer-budgets
+  environment: prod
+  image: python:3.11
+  before_script: # Override global before_script to avoid azure login
+    - pip install --upgrade pip
+    - pip install -r custom/scripts/requirements.txt
+  script:
+    - python custom/scripts/manage_customer_budgets.py
+  rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
 
