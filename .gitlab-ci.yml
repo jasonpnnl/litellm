@@ -66,6 +66,7 @@ manage_customer_budgets:dev:
   script:
     - python custom/scripts/manage_customer_budgets.py
   when: manual
+  needs: []
 
 destroy:dev:
   stage: cleanup
@@ -138,6 +139,7 @@ manage_customer_budgets:prod:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
+  needs: []
 
 destroy:prod:
   stage: cleanup
