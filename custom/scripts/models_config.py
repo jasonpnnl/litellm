@@ -266,7 +266,7 @@ models = [
         },
     },
     {
-        "model_name": "gemini-2-5-pro",
+        "model_name": "gemini-2.5-pro",
         "litellm_params": {
             "model": "gemini-2.5-pro",
             "vertex_project": require_env_var("GCP_PROJECT"),
@@ -276,7 +276,7 @@ models = [
         }
     },
     {
-        "model_name": "gemini-2-5-flash",
+        "model_name": "gemini-2.5-flash",
         "litellm_params": {
             "model": "gemini-2.5-flash",
             "vertex_project": require_env_var("GCP_PROJECT"),
