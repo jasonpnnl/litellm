@@ -44,6 +44,75 @@ def check_model_exists(model_name):
     except Exception as e:
         raise Exception(f"Error checking model existence: {e}")
 
+def get_all_models_with_name(model_name):
+    """
+    Get all model IDs for models with the given name.
+    
+    Args:
+        model_name (str): The name of the model to search for
+        
+    Returns:
+        list: List of model IDs that match the given name
+    """
+    try:
+        response = requests.get(
+            f"{LITELLM_API_URI}/model/info",
+            headers={"Authorization": f"Bearer {LITELLM_MASTER_KEY}"}
+        )
+
+        if response.status_code == 200:
+            response_json = response.json()
+            if "data" in response_json and isinstance(response_json["data"], list):
+                models = response_json["data"]
+                model_ids = []
+                for model in models:
+                    if model.get("model_name") == model_name:
+                        model_id = model.get("model_info", {}).get("id")
+                        if model_id:
+                            model_ids.append(model_id)
+                return model_ids
+            else:
+                raise Exception(f"Unexpected response format: {response_json}")
+        else:
+            raise Exception(f"Failed to get models. Status code: {response.status_code}. Response: {response.text}")
+    except Exception as e:
+        raise Exception(f"Error getting models with name {model_name}: {e}")
+
+def delete_model(model_id):
+    """
+    Delete a model from LiteLLM by its ID.
+    
+    Args:
+        model_id (str): The ID of the model to delete
+    """
+    try:
+        response = requests.post(
+            f"{LITELLM_API_URI}/model/delete",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {LITELLM_MASTER_KEY}"
+            },
+            data=json.dumps({"id": model_id})
+        )
+        if response.status_code == 200:
+            print(f"Model {model_id} deleted successfully.")
+        else:
+            raise Exception(f"Failed to delete model. Status code: {response.status_code}. Response: {response.text}")
+    except Exception as e:
+        raise Exception(f"Error deleting model {model_id}: {e}")
+
+def delete_all_models_with_name(model_name):
+    """
+    Delete all models with the given name from LiteLLM.
+    
+    Args:
+        model_name (str): The name of the models to delete
+    """
+    model_ids = get_all_models_with_name(model_name)
+    for model_id in model_ids:
+        delete_model(model_id)
+    print(f"Deleted {len(model_ids)} models with name {model_name}.")
+
 def add_model_to_litellm(model):
     model_name = model["model_name"]
     try:
@@ -120,25 +189,48 @@ if __name__ == "__main__":
         project_models = []
         openwebui_models = []
         
-        # Process each model (add/update) and categorize by team
+        # Group models by name to identify duplicates
+        models_by_name = {}
         for model in models:
             model_name = model["model_name"]
-            model_id = check_model_exists(model_name)
-            
-            if model_id:
-                print(f"Model {model_name} already exists. Updating.")
-                update_model(model, model_id)
+            if model_name not in models_by_name:
+                models_by_name[model_name] = []
+            models_by_name[model_name].append(model)
+        
+        # Process each model name
+        for model_name, model_list in models_by_name.items():
+            if len(model_list) > 1:
+                # Multiple models with same name - delete existing and add all from config
+                print(f"Found {len(model_list)} models with name {model_name}. Deleting existing models and adding all from config.")
+                delete_all_models_with_name(model_name)
+                
+                # Add all models from config with this name
+                for model in model_list:
+                    print(f"Adding model: {model_name}")
+                    add_model_to_litellm(model)
             else:
-                print(f"Adding model: {model_name}")
-                add_model_to_litellm(model)
+                # Single model with this name - use existing update/add logic
+                model = model_list[0]
+                model_id = check_model_exists(model_name)
+                
+                if model_id:
+                    print(f"Model {model_name} already exists. Updating.")
+                    update_model(model, model_id)
+                else:
+                    print(f"Adding model: {model_name}")
+                    add_model_to_litellm(model)
             
-            # Categorize models by team based on suffix
-            if model_name.endswith("-birthright"):
-                birthright_models.append(model_name)
-            elif model_name.endswith("-project"):
-                project_models.append(model_name)
-            else:
-                openwebui_models.append(model_name)
+            # Categorize models by team based on suffix (for all models with this name)
+            for model in model_list:
+                if model_name.endswith("-birthright"):
+                    if model_name not in birthright_models:
+                        birthright_models.append(model_name)
+                elif model_name.endswith("-project"):
+                    if model_name not in project_models:
+                        project_models.append(model_name)
+                else:
+                    if model_name not in openwebui_models:
+                        openwebui_models.append(model_name)
         
         # Add models to teams in batches
         if birthright_models:
