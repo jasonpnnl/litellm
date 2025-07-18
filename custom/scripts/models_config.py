@@ -19,6 +19,16 @@ models = [
         }
     },
     {
+        "model_name": "claude-sonnet-4-20250514-v1",
+        "litellm_params": {
+            "model": "vertex_ai/claude-sonnet-4@20250514",
+            "vertex_project": require_env_var("GCP_PROJECT"),
+            "vertex_location": "us-east5",
+            "vertex_credentials": _SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        },
+    },
+    {
         "model_name": "claude-sonnet-4-thinking-1024-20250514-v1",
         "litellm_params": {
             "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -33,12 +43,42 @@ models = [
         }
     },
     {
+        "model_name": "claude-sonnet-4-thinking-1024-20250514-v1",
+        "litellm_params": {
+            "model": "vertex_ai/claude-sonnet-4@20250514",
+            "vertex_project": require_env_var("GCP_PROJECT"),
+            "vertex_location": "us-east5",
+            "vertex_credentials": _SA_JSON,
+            "custom_llm_provider": "vertex_ai",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 1024
+            },
+            "merge_reasoning_content_in_choices": True
+        },
+    },
+    {
         "model_name": "claude-sonnet-4-thinking-16000-20250514-v1",
         "litellm_params": {
             "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
             "aws_access_key_id": require_env_var("BEDROCK_AWS_ACCESS_KEY_ID"),
             "aws_secret_access_key": require_env_var("BEDROCK_AWS_SECRET_ACCESS_KEY"),
             "aws_region_name": "us-west-2",
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": 16000
+            },
+            "merge_reasoning_content_in_choices": True
+        }
+    },
+    {
+        "model_name": "claude-sonnet-4-thinking-16000-20250514-v1",
+        "litellm_params": {
+            "model": "vertex_ai/claude-sonnet-4@20250514",
+            "vertex_project": require_env_var("GCP_PROJECT"),
+            "vertex_location": "us-east5",
+            "vertex_credentials": _SA_JSON,
+            "custom_llm_provider": "vertex_ai",
             "thinking": {
                 "type": "enabled",
                 "budget_tokens": 16000
