@@ -267,7 +267,7 @@ models = [
             "api_version": "2025-04-01-preview",
         },
         "model_info": {
-            "base_model": "azure/o3-2025-04-16",
+            "base_model": "azure/o3",
         }
     },
     {
@@ -373,6 +373,30 @@ models = [
         },
         "model_info": {
             "base_model": "azure/text-embedding-3-small"
+        }
+    },
+    {
+        "model_name": "o3-project",
+        "litellm_params": {
+            "model": "azure/o3",
+            "api_base": require_env_var("PROJECT_AZURE_API_BASE"),
+            "api_key": require_env_var("PROJECT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview",
+        },
+        "model_info": {
+            "base_model": "azure/o3",
+        }
+    },
+    {
+        "model_name": "o3-birthright",
+        "litellm_params": {
+            "model": "azure/o3",
+            "api_base": require_env_var("BIRTHRIGHT_AZURE_API_BASE"),
+            "api_key": require_env_var("BIRTHRIGHT_AZURE_API_KEY"),
+            "api_version": "2025-04-01-preview",
+        },
+        "model_info": {
+            "base_model": "azure/o3",
         }
     },
     {
