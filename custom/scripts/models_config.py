@@ -325,6 +325,18 @@ models = [
             "custom_llm_provider": "vertex_ai"
         }
     },
+    # Azure Foundry Models
+    {
+        "model_name": "grok-3",
+        "litellm_params": {
+            "model": "azure_ai/grok-3",
+            "api_base": require_env_var("AZURE_AI_FOUNDRY_API_BASE"),
+            "api_key": require_env_var("AZURE_AI_FOUNDRY_API_KEY")
+        },
+        "model_info": {
+            "base_model": "azure_ai/grok-3"
+        }
+    },
     # Project models - project models have the -project suffix to differentiate them from OpenWebUI models and birthright models have the -birthright suffix
     # OpenAI models
     {
