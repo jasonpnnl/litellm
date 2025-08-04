@@ -464,7 +464,34 @@ models = [
             "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
             "aws_access_key_id": require_env_var("PROJECT_AWS_ACCESS_KEY_ID"),
             "aws_secret_access_key": require_env_var("PROJECT_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-west-1"
+        }
+    },
+    {
+        "model_name": "claude-sonnet-4-20250514-v1-project",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("PROJECT_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("PROJECT_AWS_SECRET_ACCESS_KEY"),
             "aws_region_name": "us-west-2"
+        }
+    },
+    {
+        "model_name": "claude-sonnet-4-20250514-v1-project",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("PROJECT_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("PROJECT_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-east-1"
+        }
+    },
+    {
+        "model_name": "claude-sonnet-4-20250514-v1-project",
+        "litellm_params": {
+            "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "aws_access_key_id": require_env_var("PROJECT_AWS_ACCESS_KEY_ID"),
+            "aws_secret_access_key": require_env_var("PROJECT_AWS_SECRET_ACCESS_KEY"),
+            "aws_region_name": "us-east-2"
         }
     },
     {
