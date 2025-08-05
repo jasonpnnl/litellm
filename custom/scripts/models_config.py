@@ -2,9 +2,17 @@ import json
 from custom.scripts.utils import require_env_var
 
 _SA_FILE = require_env_var("GCP_SERVICE_ACCOUNT_JSON")
+_PROJECT_SA_FILE = require_env_var("PROJECT_GCP_SERVICE_ACCOUNT_JSON")
+_BIRTHRIGHT_SA_FILE = require_env_var("BIRTHRIGHT_GCP_SERVICE_ACCOUNT_JSON")
 
 with open(_SA_FILE) as f:
     _SA_JSON = json.dumps(json.load(f))
+
+with open(_PROJECT_SA_FILE) as f:
+    _PROJECT_SA_JSON = json.dumps(json.load(f))
+
+with open(_BIRTHRIGHT_SA_FILE) as f:
+    _BIRTHRIGHT_SA_JSON = json.dumps(json.load(f))
 
 models = [
     # OpenWebUI models - note that going forward, OpenWebUI models will have no suffix to simplify the import process
@@ -322,6 +330,26 @@ models = [
             "vertex_project": require_env_var("GCP_PROJECT"),
             "vertex_location": "us-central1",
             "vertex_credentials": _SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2.5-pro-birthright",
+        "litellm_params": {
+            "model": "gemini-2.5-pro",
+            "vertex_project": require_env_var("BIRTHRIGHT_GCP_PROJECT"),
+            "vertex_location": "us-central1",
+            "vertex_credentials": _BIRTHRIGHT_SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2.5-pro-project",
+        "litellm_params": {
+            "model": "gemini-2.5-pro",
+            "vertex_project": require_env_var("PROJECT_GCP_PROJECT"),
+            "vertex_location": "us-central1",
+            "vertex_credentials": _PROJECT_SA_JSON,
             "custom_llm_provider": "vertex_ai"
         }
     },
