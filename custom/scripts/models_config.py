@@ -338,7 +338,7 @@ models = [
         "litellm_params": {
             "model": "gemini-2.5-pro",
             "vertex_project": require_env_var("BIRTHRIGHT_GCP_PROJECT"),
-            "vertex_location": "us-central1",
+            "vertex_location": "us-west1",
             "vertex_credentials": _BIRTHRIGHT_SA_JSON,
             "custom_llm_provider": "vertex_ai"
         }
@@ -348,7 +348,27 @@ models = [
         "litellm_params": {
             "model": "gemini-2.5-pro",
             "vertex_project": require_env_var("PROJECT_GCP_PROJECT"),
-            "vertex_location": "us-central1",
+            "vertex_location": "us-west1",
+            "vertex_credentials": _PROJECT_SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2.5-flash-birthright",
+        "litellm_params": {
+            "model": "gemini-2.5-flash",
+            "vertex_project": require_env_var("BIRTHRIGHT_GCP_PROJECT"),
+            "vertex_location": "us-west1",
+            "vertex_credentials": _BIRTHRIGHT_SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2.5-flash-project",
+        "litellm_params": {
+            "model": "gemini-2.5-flash",
+            "vertex_project": require_env_var("PROJECT_GCP_PROJECT"),
+            "vertex_location": "us-west1",
             "vertex_credentials": _PROJECT_SA_JSON,
             "custom_llm_provider": "vertex_ai"
         }
