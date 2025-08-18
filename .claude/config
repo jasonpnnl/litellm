@@ -1,0 +1,9 @@
+[profile AdministratorAccess-019116610105]
+sso_session = pnnl
+sso_account_id = 019116610105
+sso_role_name = AdministratorAccess
+region = us-east-1
+[sso-session pnnl]
+sso_start_url = https://pnnl.awsapps.com/start/
+sso_region = us-west-2
+sso_registration_scopes = sso:account:access
