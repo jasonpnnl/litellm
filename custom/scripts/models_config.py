@@ -303,6 +303,19 @@ models = [
         }
     },
     {
+        "model_name": "gpt-5-reason-medium",
+        "litellm_params": {
+            "model": "azure/gpt-5",
+            "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
+            "api_version": "2025-04-01-preview",
+            "reasoning_effort": "medium"
+        },
+        "model_info": {
+            "base_model": "azure/gpt-5",
+        }
+    },
+    {
         "model_name": "gpt-5-mini",
         "litellm_params": {
             "model": "azure/gpt-5-mini",
@@ -338,6 +351,18 @@ models = [
             "base_model": "azure/gpt-4.1-2025-04-14",
         }
     },
+    {
+        "model_name": "gpt-image-1",
+        "litellm_params": {
+            "model": "azure/gpt-image-1",
+            "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
+            "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
+            "api_version": "2025-04-01-preview"
+        },
+        "model_info": {
+            "base_model": "azure/gpt-image-1"
+        }
+    },
     # Gemini models
     {
         "model_name": "gemini-2.0-flash-001",
@@ -369,43 +394,34 @@ models = [
             "custom_llm_provider": "vertex_ai"
         }
     },
+    # Imagen 4 models
     {
-        "model_name": "gemini-2.5-pro-birthright",
+        "model_name": "imagen-4.0-generate-001",
         "litellm_params": {
-            "model": "gemini-2.5-pro",
-            "vertex_project": require_env_var("BIRTHRIGHT_GCP_PROJECT"),
+            "model": "vertex_ai/imagen-4.0-generate-001",
+            "vertex_project": require_env_var("GCP_PROJECT"),
             "vertex_location": "us-west1",
-            "vertex_credentials": _BIRTHRIGHT_SA_JSON,
+            "vertex_credentials": _SA_JSON,
             "custom_llm_provider": "vertex_ai"
         }
     },
     {
-        "model_name": "gemini-2.5-pro-project",
+        "model_name": "imagen-4.0-generate-fast-001",
         "litellm_params": {
-            "model": "gemini-2.5-pro",
-            "vertex_project": require_env_var("PROJECT_GCP_PROJECT"),
+            "model": "vertex_ai/imagen-4.0-generate-fast-001",
+            "vertex_project": require_env_var("GCP_PROJECT"),
             "vertex_location": "us-west1",
-            "vertex_credentials": _PROJECT_SA_JSON,
+            "vertex_credentials": _SA_JSON,
             "custom_llm_provider": "vertex_ai"
         }
     },
     {
-        "model_name": "gemini-2.5-flash-birthright",
+        "model_name": "imagen-4.0-generate-ultra-001",
         "litellm_params": {
-            "model": "gemini-2.5-flash",
-            "vertex_project": require_env_var("BIRTHRIGHT_GCP_PROJECT"),
+            "model": "vertex_ai/imagen-4.0-generate-ultra-001",
+            "vertex_project": require_env_var("GCP_PROJECT"),
             "vertex_location": "us-west1",
-            "vertex_credentials": _BIRTHRIGHT_SA_JSON,
-            "custom_llm_provider": "vertex_ai"
-        }
-    },
-    {
-        "model_name": "gemini-2.5-flash-project",
-        "litellm_params": {
-            "model": "gemini-2.5-flash",
-            "vertex_project": require_env_var("PROJECT_GCP_PROJECT"),
-            "vertex_location": "us-west1",
-            "vertex_credentials": _PROJECT_SA_JSON,
+            "vertex_credentials": _SA_JSON,
             "custom_llm_provider": "vertex_ai"
         }
     },
@@ -539,6 +555,47 @@ models = [
         },
         "model_info": {
             "base_model": "azure/o4-mini-2025-04-16",
+        }
+    },
+    # Gemini models
+    {
+        "model_name": "gemini-2.5-pro-project",
+        "litellm_params": {
+            "model": "gemini-2.5-pro",
+            "vertex_project": require_env_var("PROJECT_GCP_PROJECT"),
+            "vertex_location": "us-west1",
+            "vertex_credentials": _PROJECT_SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2.5-pro-birthright",
+        "litellm_params": {
+            "model": "gemini-2.5-pro",
+            "vertex_project": require_env_var("BIRTHRIGHT_GCP_PROJECT"),
+            "vertex_location": "us-west1",
+            "vertex_credentials": _BIRTHRIGHT_SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2.5-flash-project",
+        "litellm_params": {
+            "model": "gemini-2.5-flash",
+            "vertex_project": require_env_var("PROJECT_GCP_PROJECT"),
+            "vertex_location": "us-west1",
+            "vertex_credentials": _PROJECT_SA_JSON,
+            "custom_llm_provider": "vertex_ai"
+        }
+    },
+    {
+        "model_name": "gemini-2.5-flash-birthright",
+        "litellm_params": {
+            "model": "gemini-2.5-flash",
+            "vertex_project": require_env_var("BIRTHRIGHT_GCP_PROJECT"),
+            "vertex_location": "us-west1",
+            "vertex_credentials": _BIRTHRIGHT_SA_JSON,
+            "custom_llm_provider": "vertex_ai"
         }
     },
     # Claude models
