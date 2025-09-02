@@ -1,7 +1,7 @@
 ---
 title: "[PRE-RELEASE]v1.75.5-stable"
 slug: "v1-75-5"
-date: 2025-08-02T10:00:00
+date: 2025-08-10T10:00:00
 authors:
   - name: Krrish Dholakia
     title: CEO, LiteLLM
@@ -21,11 +21,27 @@ import TabItem from '@theme/TabItem';
 
 ## Deploy this version
 
-:::info
+<Tabs>
+<TabItem value="docker" label="Docker">
 
-This release is not out yet. 
+``` showLineNumbers title="docker run litellm"
+docker run \
+-e STORE_MODEL_IN_DB=True \
+-p 4000:4000 \
+ghcr.io/berriai/litellm:v1.75.5.rc.1
+```
+</TabItem>
 
-:::
+<TabItem value="pip" label="Pip">
+
+``` showLineNumbers title="pip install litellm"
+pip install litellm==1.75.5.post1
+```
+
+</TabItem>
+</Tabs>
+
+---
 
 ---
 
