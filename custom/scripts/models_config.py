@@ -342,46 +342,6 @@ models = [
             "base_model": "azure/gpt-5-nano",
         }
     },
-    # GPT-5 models with responses API bridge for reasoning summaries
-    {
-        "model_name": "responses/gpt-5",
-        "litellm_params": {
-            "model": "azure/gpt-5",
-            "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
-            "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
-            "api_version": "2025-04-01-preview",
-            "merge_reasoning_content_in_choices": True
-        },
-        "model_info": {
-            "base_model": "azure/gpt-5",
-        }
-    },
-    {
-        "model_name": "responses/gpt-5-mini",
-        "litellm_params": {
-            "model": "azure/gpt-5-mini",
-            "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
-            "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
-            "api_version": "2025-04-01-preview",
-            "merge_reasoning_content_in_choices": True
-        },
-        "model_info": {
-            "base_model": "azure/gpt-5-mini",
-        }
-    },
-    {
-        "model_name": "responses/gpt-5-nano",
-        "litellm_params": {
-            "model": "azure/gpt-5-nano",
-            "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
-            "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
-            "api_version": "2025-04-01-preview",
-            "merge_reasoning_content_in_choices": True
-        },
-        "model_info": {
-            "base_model": "azure/gpt-5-nano",
-        }
-    },
     {
         "model_name": "gpt-4.1-openwebui",
         "litellm_params": {
