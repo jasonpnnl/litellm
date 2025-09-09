@@ -170,10 +170,7 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
             responses_api_request.get("reasoning") is None
             and litellm_params.get("merge_reasoning_content_in_choices") is True
         ):
-            responses_api_request["reasoning"] = Reasoning(summary="auto")
-            verbose_logger.debug(
-                "Chat provider: Auto-enabled reasoning summaries for merge_reasoning_content_in_choices=True"
-            )
+            responses_api_request["reasoning"] = self._map_reasoning_effort(optional_params.get("reasoning_effort"))
 
         # Get stream parameter from litellm_params if not in optional_params
         stream = optional_params.get("stream") or litellm_params.get("stream", False)
@@ -521,7 +518,7 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
             responses_tools.append(tool)
         return cast(List["ALL_RESPONSES_API_TOOL_PARAMS"], responses_tools)
 
-    def _map_reasoning_effort(self, reasoning_effort: str) -> Optional[Reasoning]:
+    def _map_reasoning_effort(self, reasoning_effort: Optional[str]) -> Reasoning:
         if reasoning_effort == "high":
             return Reasoning(effort="high", summary="detailed")
         elif reasoning_effort == "medium":
@@ -531,7 +528,7 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
             return Reasoning(effort="low", summary="auto")
         elif reasoning_effort == "minimal":
             return Reasoning(effort="minimal", summary="auto")
-        return None
+        return Reasoning(summary="auto")
 
     def _map_responses_status_to_finish_reason(self, status: Optional[str]) -> str:
         """Map responses API status to chat completion finish_reason"""
