@@ -164,6 +164,17 @@ class LiteLLMResponsesTransformationHandler(CompletionTransformationBridge):
             elif key == "reasoning_effort":
                 responses_api_request["reasoning"] = self._map_reasoning_effort(value)
 
+        # Auto-enable reasoning summaries if merge_reasoning_content_in_choices=True
+        # This ensures OpenWebUI gets reasoning summaries even without explicit reasoning_effort
+        if (
+            responses_api_request.get("reasoning") is None
+            and litellm_params.get("merge_reasoning_content_in_choices") is True
+        ):
+            responses_api_request["reasoning"] = Reasoning(summary="auto")
+            verbose_logger.debug(
+                "Chat provider: Auto-enabled reasoning summaries for merge_reasoning_content_in_choices=True"
+            )
+
         # Get stream parameter from litellm_params if not in optional_params
         stream = optional_params.get("stream") or litellm_params.get("stream", False)
         verbose_logger.debug(f"Chat provider: Stream parameter: {stream}")
