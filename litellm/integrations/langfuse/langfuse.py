@@ -675,9 +675,19 @@ class LangFuseLogger:
                 _usage_obj = getattr(response_obj, "usage", None)
 
                 if _usage_obj:
+                    # Handle both Usage and ResponseAPIUsage objects
+                    if hasattr(_usage_obj, "prompt_tokens"):
+                        # Standard Usage object
+                        prompt_tokens = _usage_obj.prompt_tokens
+                        completion_tokens = _usage_obj.completion_tokens
+                    else:
+                        # ResponseAPIUsage object from responses API bridge
+                        prompt_tokens = _usage_obj.input_tokens
+                        completion_tokens = _usage_obj.output_tokens
+                        
                     usage = {
-                        "prompt_tokens": _usage_obj.prompt_tokens,
-                        "completion_tokens": _usage_obj.completion_tokens,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
                         "total_cost": cost if self._supports_costs() else None,
                     }
             generation_name = clean_metadata.pop("generation_name", None)

@@ -297,6 +297,7 @@ models = [
             "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
             "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
             "api_version": "2025-04-01-preview",
+            "merge_reasoning_content_in_choices": True
         },
         "model_info": {
             "base_model": "azure/gpt-5",
@@ -322,6 +323,7 @@ models = [
             "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
             "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
             "api_version": "2025-04-01-preview",
+            "merge_reasoning_content_in_choices": True
         },
         "model_info": {
             "base_model": "azure/gpt-5-mini",
@@ -334,6 +336,7 @@ models = [
             "api_base": require_env_var("AZURE_OPENAI4_API_BASE"),
             "api_key": require_env_var("AZURE_OPENAI4_API_KEY"),
             "api_version": "2025-04-01-preview",
+            "merge_reasoning_content_in_choices": True
         },
         "model_info": {
             "base_model": "azure/gpt-5-nano",
