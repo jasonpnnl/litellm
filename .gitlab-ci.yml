@@ -161,9 +161,7 @@ deploy:extprod:
     - docker:dind
   before_script: *deploy_before_script
   script: *deploy_script
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  allow_failure: true
+  when: manual
 
 add_models:extprod:
   stage: add-models
@@ -174,15 +172,7 @@ add_models:extprod:
     - pip install -r custom/scripts/requirements.txt
   script:
     - python custom/scripts/add_models.py
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_MESSAGE =~ /^Merge/'
-      changes:
-        - custom/scripts/models_config.py
-      when: on_success
-      needs:
-        - deploy:extprod
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      when: manual
+  when: manual
 
 destroy:extprod:
   stage: cleanup
