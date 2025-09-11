@@ -40,6 +40,9 @@ param langfuseSecretKey string
 
 var abbrs = loadJsonContent('./abbreviations.json')
 
+// Check if this is a production environment (either 'aiendpointprod' or 'aiendpointprod-ext')
+var isProdEnvironment = (name == 'aiendpointprod' || name == 'aiendpointextprod')
+
 var openai_name = toLower('${name}ai${resourceToken}')
 var webapp_name = toLower('${name}-webapp-${resourceToken}')
 var appservice_name = toLower('${name}-app-${resourceToken}')
@@ -55,8 +58,8 @@ var linux_fx_version = 'DOCKER|${latestImage}'
 
 var keyVaultSecretsUserRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var containerRegistryAcrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-var proxyBaseUrl = (name == 'aiendpointdev' ? 'https://ai-incubator-dev-api.pnnl.gov/' : name == 'aiendpointprod' ? 'https://ai-incubator-api.pnnl.gov/' : 'https://${webapp_name}.azurewebsites.net/')
-var appServicePlanSku = name == 'aiendpointprod' ? 'P1v3' : 'B1'
+var proxyBaseUrl = (name == 'aiendpointdev' ? 'https://ai-incubator-dev-api.pnnl.gov/' : name == 'aiendpointdev-ext' ? 'https://ai-incubator-api-ext-dev.pnnl.gov/' : name == 'aiendpointprod' ? 'https://ai-incubator-api.pnnl.gov/' : name == 'aiendpointprod-ext' ? 'https://ai-incubator-api-ext.pnnl.gov/' : 'https://${webapp_name}.azurewebsites.net/')
+var appServicePlanSku = isProdEnvironment ? 'P1v3' : 'B1'
 
 var la_workspace_name = toLower('${name}-la-${resourceToken}')
 var diagnostic_setting_name = 'AppServiceConsoleLogs'
@@ -135,8 +138,8 @@ resource existingPNNLSubnet 'Microsoft.Network/virtualNetworks/subnets@2021-02-0
 // }
 
 
-var postgresSku = name == 'aiendpointprod' ? 'Standard_D2ds_v4' : 'Standard_B1ms'
-var postgresSkuTier = name == 'aiendpointprod' ? 'GeneralPurpose' : 'Burstable'
+var postgresSku = isProdEnvironment ? 'Standard_D2ds_v4' : 'Standard_B1ms'
+var postgresSkuTier = isProdEnvironment ? 'GeneralPurpose' : 'Burstable'
 resource postgresDB 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' = {
   location: location
   tags: {}
@@ -229,7 +232,7 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'DATABASE_CONNECTION_POOL_LIMIT'
-            value: name == 'aiendpointdev' ? '150' : '400'
+            value: isProdEnvironment ? '400' : '150'
         }
         {
           name: 'DATABASE_CONNECTION_POOL_TIMEOUT'

@@ -5,6 +5,21 @@ variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
 
+.deploy_before_script: &deploy_before_script
+  - docker --version
+  - docker info
+  - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+  - az login --service-principal --username $AZD_AZURE_AD_CLIENT_ID --password $AZD_AZURE_AD_CLIENT_SECRET --tenant $AZURE_AD_TENANT_ID
+  - az account set --subscription $AZURE_SUBSCRIPTION_ID
+  - export AZURE_CONTAINER_REGISTRY_ENDPOINT=$(az deployment group show --name registry --resource-group "rg-$AZURE_ENV_NAME" --query properties.outputs.loginServer.value -o tsv)
+  - echo $AZURE_CONTAINER_REGISTRY_ENDPOINT
+  - az acr login --name $AZURE_CONTAINER_REGISTRY_ENDPOINT
+
+.deploy_script: &deploy_script
+  - docker build -t $DOCKER_IMAGE_NAME .
+  - docker tag $DOCKER_IMAGE_NAME $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+  - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+
 
 stages:
   - provision
@@ -30,19 +45,8 @@ deploy:dev:
   environment: dev
   services:
     - docker:dind
-  before_script:
-    - docker --version
-    - docker info
-    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
-    - az login --service-principal --username $AZD_AZURE_AD_CLIENT_ID --password $AZD_AZURE_AD_CLIENT_SECRET --tenant $AZURE_AD_TENANT_ID
-    - az account set --subscription $AZURE_SUBSCRIPTION_ID
-    - export AZURE_CONTAINER_REGISTRY_ENDPOINT=$(az deployment group show --name registry --resource-group "rg-$AZURE_ENV_NAME" --query properties.outputs.loginServer.value -o tsv)
-    - echo $AZURE_CONTAINER_REGISTRY_ENDPOINT
-    - az acr login --name $AZURE_CONTAINER_REGISTRY_ENDPOINT
-  script:
-    - docker build -t $DOCKER_IMAGE_NAME .
-    - docker tag $DOCKER_IMAGE_NAME $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
-    - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+  before_script: *deploy_before_script
+  script: *deploy_script
   when: manual
 
 add_models:dev:
@@ -91,19 +95,8 @@ deploy:prod:
   environment: prod
   services:
     - docker:dind
-  before_script:
-    - docker --version
-    - docker info
-    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
-    - az login --service-principal --username $AZD_AZURE_AD_CLIENT_ID --password $AZD_AZURE_AD_CLIENT_SECRET --tenant $AZURE_AD_TENANT_ID
-    - az account set --subscription $AZURE_SUBSCRIPTION_ID
-    - export AZURE_CONTAINER_REGISTRY_ENDPOINT=$(az deployment group show --name registry --resource-group "rg-$AZURE_ENV_NAME" --query properties.outputs.loginServer.value -o tsv)
-    - echo $AZURE_CONTAINER_REGISTRY_ENDPOINT
-    - az acr login --name $AZURE_CONTAINER_REGISTRY_ENDPOINT
-  script:
-    - docker build -t $DOCKER_IMAGE_NAME .
-    - docker tag $DOCKER_IMAGE_NAME $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
-    - docker push $AZURE_CONTAINER_REGISTRY_ENDPOINT/$DOCKER_IMAGE_NAME/$DOCKER_IMAGE_NAME:latest
+  before_script: *deploy_before_script
+  script: *deploy_script
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   allow_failure: true
@@ -145,6 +138,56 @@ destroy:prod:
   stage: cleanup
   when: manual
   environment: prod
+  script:
+    - azd down
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+
+
+provision:extprod:
+  stage: provision
+  environment: extprod
+  script:
+    - azd provision --no-prompt
+  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+deploy:extprod:
+  stage: deploy
+  environment: extprod
+  services:
+    - docker:dind
+  before_script: *deploy_before_script
+  script: *deploy_script
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+add_models:extprod:
+  stage: add-models
+  environment: extprod
+  image: python:3.11
+  before_script: # Override global before_script to avoid azure login
+    - pip install --upgrade pip
+    - pip install -r custom/scripts/requirements.txt
+  script:
+    - python custom/scripts/add_models.py
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_MESSAGE =~ /^Merge/'
+      changes:
+        - custom/scripts/models_config.py
+      when: on_success
+      needs:
+        - deploy:extprod
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+
+destroy:extprod:
+  stage: cleanup
+  when: manual
+  environment: extprod
   script:
     - azd down
   rules:
