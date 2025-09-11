@@ -145,27 +145,27 @@ destroy:prod:
 
 
 
-provision:extprod:
+provision:prod-ext:
   stage: provision
-  environment: extprod
+  environment: prod-ext
   script:
     - azd provision --no-prompt
   when: manual
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-deploy:extprod:
+deploy:prod-ext:
   stage: deploy
-  environment: extprod
+  environment: prod-ext
   services:
     - docker:dind
   before_script: *deploy_before_script
   script: *deploy_script
   when: manual
 
-add_models:extprod:
+add_models:prod-ext:
   stage: add-models
-  environment: extprod
+  environment: prod-ext
   image: python:3.11
   before_script: # Override global before_script to avoid azure login
     - pip install --upgrade pip
@@ -174,10 +174,10 @@ add_models:extprod:
     - python custom/scripts/add_models.py
   when: manual
 
-destroy:extprod:
+destroy:prod-ext:
   stage: cleanup
   when: manual
-  environment: extprod
+  environment: prod-ext
   script:
     - azd down
   rules:
