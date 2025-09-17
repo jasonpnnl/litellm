@@ -3381,12 +3381,15 @@ async def async_assistants_data_generator(
 
 
 async def async_data_generator(
-    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict
+    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict, request: Optional[Request] = None
 ):
     verbose_proxy_logger.debug("inside generator")
+    client_disconnected = False
+    
     try:
         str_so_far = ""
         error_message: Optional[str] = None
+        verbose_proxy_logger.debug("🚀 STARTING async_for_loop over streaming iterator")
         async for chunk in proxy_logging_obj.async_post_call_streaming_iterator_hook(
             user_api_key_dict=user_api_key_dict,
             response=response,
@@ -3395,6 +3398,15 @@ async def async_data_generator(
             verbose_proxy_logger.debug(
                 "async_data_generator: received streaming chunk - {}".format(chunk)
             )
+
+            # Check for client disconnection using FastAPI's proper method
+            if request is not None and not client_disconnected:
+                verbose_proxy_logger.debug(f"🔍 Checking client connection status for chunk: {str(chunk)[:50]}...")
+                if await request.is_disconnected():
+                    verbose_proxy_logger.info(f"🔴 CLIENT DISCONNECTED DETECTED - will consume remaining chunks for logging only. Current chunk: {str(chunk)[:100]}...")
+                    client_disconnected = True
+                else:
+                    verbose_proxy_logger.debug("✅ Client still connected")
 
             ### CALL HOOKS ### - modify outgoing data
             chunk = await proxy_logging_obj.async_post_call_streaming_hook(
@@ -3414,18 +3426,43 @@ async def async_data_generator(
                 error_message = chunk
                 break
 
-            try:
-                yield f"data: {chunk}\n\n"
-            except Exception as e:
-                yield f"data: {str(e)}\n\n"
+            # If client already disconnected, just consume remaining chunks for logging
+            if client_disconnected:
+                verbose_proxy_logger.debug(f"Client disconnected - consuming chunk for logging but not yielding: {str(chunk)[:100]}...")
+                continue
+                
+            # Only yield if client is still connected
+            if not client_disconnected:
+                try:
+                    yield f"data: {chunk}\n\n"
+                    verbose_proxy_logger.debug(f"Successfully yielded chunk to client: {str(chunk)[:50]}...")
+                except Exception as e:
+                    verbose_proxy_logger.error(f"Exception yielding chunk to client: {type(e).__name__}: {str(e)}. Chunk: {str(chunk)[:100]}...")
+                    # Mark as disconnected and continue consuming for logging
+                    client_disconnected = True
 
-        # Streaming is done, yield the [DONE] chunk
-        if error_message is not None:
-            yield error_message
-        done_message = "[DONE]"
-        yield f"data: {done_message}\n\n"
+        # Streaming is done, yield the [DONE] chunk only if client is still connected
+        verbose_proxy_logger.debug(f"🏁 ASYNC FOR LOOP COMPLETED NATURALLY - client_disconnected: {client_disconnected}")
+        if not client_disconnected:
+            try:
+                if error_message is not None:
+                    yield error_message
+                    verbose_proxy_logger.debug(f"Successfully yielded error message to client: {error_message}")
+                done_message = "[DONE]"
+                yield f"data: {done_message}\n\n"
+                verbose_proxy_logger.debug("Successfully yielded [DONE] message to client")
+            except Exception as e:
+                verbose_proxy_logger.error(f"Exception yielding final messages to client: {type(e).__name__}: {str(e)}")
+                client_disconnected = True
+        else:
+            verbose_proxy_logger.debug("Stream completed - client disconnected but logging should have occurred")
+            
+    except asyncio.CancelledError as e:
+        verbose_proxy_logger.error(f"🛑 TASK CANCELLED - FastAPI likely cancelled the request handler: {e}")
+        raise  # Re-raise to let FastAPI handle it
     except Exception as e:
         verbose_proxy_logger.exception(
+            f"💥 UNEXPECTED EXCEPTION in async_data_generator: {e}\n"
             "litellm.proxy.proxy_server.async_data_generator(): Exception occured - {}".format(
                 str(e)
             )
@@ -3458,12 +3495,13 @@ async def async_data_generator(
 
 
 def select_data_generator(
-    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict
+    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict, request: Optional[Request] = None
 ):
     return async_data_generator(
         response=response,
         user_api_key_dict=user_api_key_dict,
         request_data=request_data,
+        request=request,
     )
 
 
@@ -4096,6 +4134,7 @@ async def chat_completion(  # noqa: PLR0915
                 response=_streaming_response,
                 user_api_key_dict=user_api_key_dict,
                 request_data=_data,
+                request=request,
             )
 
             return StreamingResponse(
@@ -4209,6 +4248,7 @@ async def completion(  # noqa: PLR0915
                 response=_streaming_response,
                 user_api_key_dict=user_api_key_dict,
                 request_data=data,
+                request=request,
             )
 
             return StreamingResponse(
@@ -4674,6 +4714,7 @@ async def audio_speech(
             response=response,
             user_api_key_dict=user_api_key_dict,
             request_data=data,
+            request=request,
         )
         # Determine media type based on model type
         media_type = "audio/mpeg"  # Default for OpenAI TTS
@@ -7415,6 +7456,7 @@ async def async_queue_request(
                     user_api_key_dict=user_api_key_dict,
                     response=response,
                     request_data=data,
+                    request=request,
                 ),
                 media_type="text/event-stream",
             )
