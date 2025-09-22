@@ -11,6 +11,7 @@ import time
 import traceback
 import uuid
 import warnings
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import (
     TYPE_CHECKING,
@@ -26,6 +27,8 @@ from typing import (
     get_origin,
     get_type_hints,
 )
+
+from anyio import create_task_group
 
 from litellm.constants import (
     BASE_MCP_ROUTE,
@@ -3314,6 +3317,224 @@ async def initialize(  # noqa: PLR0915
     user_telemetry = telemetry
 
 
+@asynccontextmanager
+async def _noop_async_context():
+    """Async no-op context used when there is no FastAPI request available."""
+
+    yield
+
+
+@asynccontextmanager
+async def cancel_on_disconnect(request: Optional[Request]):
+    """Cancel enclosed work if FastAPI notifies us about an http.disconnect event.
+
+    Mirrors https://jasoncameron.dev/posts/fastapi-cancel-on-disconnect to ensure we
+    tear down streaming tasks quickly when clients bail.
+    """
+
+    if request is None:
+        # Nothing to monitor when we're invoked outside of a FastAPI request.
+        async with _noop_async_context():
+            yield
+        return
+
+    client_addr = "-:-"
+    if request.client is not None:
+        client_addr = f"{request.client.host}:{request.client.port}"
+    req_path = getattr(request.url, "path", "-")
+    req_method = getattr(request, "method", "UNKNOWN")
+
+    verbose_proxy_logger.debug(
+        "Starting cancel_on_disconnect watcher for %s \"%s %s\"",
+        client_addr,
+        req_method,
+        req_path,
+    )
+
+    async with create_task_group() as tg:
+        async def watch_disconnect() -> None:
+            try:
+                while True:
+                    message = await request.receive()
+                    message_type = message.get("type")
+                    if message_type == "http.disconnect":
+                        verbose_proxy_logger.debug(
+                            "%s - \"%s %s\" received http.disconnect; cancelling stream",
+                            client_addr,
+                            req_method,
+                            req_path,
+                        )
+                        tg.cancel_scope.cancel()
+                        break
+            except asyncio.CancelledError:
+                verbose_proxy_logger.debug(
+                    "cancel_on_disconnect watcher cancelled for %s \"%s %s\"",
+                    client_addr,
+                    req_method,
+                    req_path,
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging only
+                verbose_proxy_logger.warning(
+                    "cancel_on_disconnect watcher exited with %s for %s \"%s %s\"",
+                    type(exc).__name__,
+                    client_addr,
+                    req_method,
+                    req_path,
+                    exc_info=exc,
+                )
+
+        tg.start_soon(watch_disconnect)
+
+        try:
+            yield
+        finally:
+            verbose_proxy_logger.debug(
+                "cancel_on_disconnect cleanup for %s \"%s %s\"",
+                client_addr,
+                req_method,
+                req_path,
+            )
+            tg.cancel_scope.cancel()
+
+
+async def _finalize_stream_logging(
+    *,
+    response_stream: Any,
+    logging_obj: Optional[Any],
+    reason: str,
+    cancelled: bool,
+) -> None:
+    """Ensure streaming usage/logging fires even if the client disconnects mid-stream."""
+
+    if logging_obj is None:
+        verbose_proxy_logger.debug(
+            "Skipping stream logging finalize (%s): no logging object", reason
+        )
+        return
+
+    model_call_details = getattr(logging_obj, "model_call_details", {}) or {}
+    if model_call_details.get("async_complete_streaming_response") is not None or (
+        model_call_details.get("complete_streaming_response") is not None
+    ):
+        verbose_proxy_logger.debug(
+            "Stream logging already finalized before %s", reason
+        )
+        return
+
+    stream_chunks: List[Any] = []
+    if hasattr(response_stream, "chunks"):
+        try:
+            stream_chunks = list(getattr(response_stream, "chunks") or [])
+        except Exception as exc:
+            verbose_proxy_logger.debug(
+                "Unable to read chunks from response stream during %s: %s",
+                reason,
+                exc,
+            )
+
+    if not stream_chunks:
+        candidate_chunks = None
+        if hasattr(logging_obj, "streaming_chunks"):
+            candidate_chunks = getattr(logging_obj, "streaming_chunks")
+        if not candidate_chunks and hasattr(logging_obj, "sync_streaming_chunks"):
+            candidate_chunks = getattr(logging_obj, "sync_streaming_chunks")
+        if candidate_chunks:
+            try:
+                stream_chunks = list(candidate_chunks)
+            except Exception as exc:
+                verbose_proxy_logger.debug(
+                    "Unable to copy logging object's streaming chunks during %s: %s",
+                    reason,
+                    exc,
+                )
+
+    if not stream_chunks:
+        verbose_proxy_logger.debug(
+            "No streaming chunks available to finalize usage during %s", reason
+        )
+        return
+
+    chunk_copies: List[Any] = []
+    for chunk in stream_chunks:
+        if hasattr(chunk, "model_copy"):
+            try:
+                chunk_copies.append(chunk.model_copy(deep=True))
+                continue
+            except Exception:
+                pass
+        try:
+            chunk_copies.append(copy.deepcopy(chunk))
+        except Exception:
+            chunk_copies.append(chunk)
+
+    try:
+        assembled_response = litellm.stream_chunk_builder(
+            chunks=chunk_copies,
+            messages=getattr(logging_obj, "messages", None),
+            logging_obj=logging_obj,
+        )
+    except Exception as exc:
+        verbose_proxy_logger.warning(
+            "Failed to assemble partial streaming response during %s cleanup: %s",
+            reason,
+            exc,
+            exc_info=exc,
+        )
+        return
+
+    if assembled_response is None:
+        verbose_proxy_logger.debug(
+            "Assembled response is None while finalizing stream for %s", reason
+        )
+        return
+
+    if cancelled:
+        try:
+            choices = getattr(assembled_response, "choices", [])
+            if choices:
+                finish_reason = getattr(choices[0], "finish_reason", None)
+                if finish_reason in (None, "", "stop"):
+                    choices[0].finish_reason = "cancelled"
+        except Exception as exc:
+            verbose_proxy_logger.debug(
+                "Unable to set cancelled finish_reason on assembled response (%s): %s",
+                reason,
+                exc,
+            )
+
+    cache_hit_value = model_call_details.get("cache_hit", False)
+    if isinstance(cache_hit_value, str):
+        cache_hit = cache_hit_value.lower() == "true"
+    else:
+        cache_hit = bool(cache_hit_value)
+
+    try:
+        await logging_obj.async_success_handler(
+            result=assembled_response,
+            cache_hit=cache_hit,
+        )
+    except Exception as exc:
+        verbose_proxy_logger.warning(
+            "async_success_handler failed during %s cleanup: %s",
+            reason,
+            exc,
+            exc_info=exc,
+        )
+
+    try:
+        logging_obj.success_handler(
+            result=assembled_response,
+            cache_hit=cache_hit,
+        )
+    except Exception as exc:
+        verbose_proxy_logger.warning(
+            "success_handler failed during %s cleanup: %s",
+            reason,
+            exc,
+            exc_info=exc,
+        )
+
+
 # for streaming
 def data_generator(response):
     verbose_proxy_logger.debug("inside generator")
@@ -3385,82 +3606,128 @@ async def async_data_generator(
 ):
     verbose_proxy_logger.debug("inside generator")
     client_disconnected = False
-    
+    cancelled_cleanup = False
+
+    logging_obj = None
+    if isinstance(request_data, dict):
+        logging_obj = request_data.get("litellm_logging_obj")
+
+    client_addr = "-:-"
+    req_path = "-"
+    req_method = "UNKNOWN"
+    if request is not None:
+        if request.client is not None:
+            client_addr = f"{request.client.host}:{request.client.port}"
+        req_path = getattr(request.url, "path", "-")
+        req_method = getattr(request, "method", "UNKNOWN")
+
+    disconnect_context = cancel_on_disconnect(request)
+
+    finalize_reason: Optional[str] = None
+
     try:
         str_so_far = ""
         error_message: Optional[str] = None
         verbose_proxy_logger.debug("🚀 STARTING async_for_loop over streaming iterator")
-        async for chunk in proxy_logging_obj.async_post_call_streaming_iterator_hook(
-            user_api_key_dict=user_api_key_dict,
-            response=response,
-            request_data=request_data,
-        ):
-            verbose_proxy_logger.debug(
-                "async_data_generator: received streaming chunk - {}".format(chunk)
-            )
 
-            # Check for client disconnection using FastAPI's proper method
-            if request is not None and not client_disconnected:
-                verbose_proxy_logger.debug(f"🔍 Checking client connection status for chunk: {str(chunk)[:50]}...")
-                if await request.is_disconnected():
-                    verbose_proxy_logger.info(f"🔴 CLIENT DISCONNECTED DETECTED - will consume remaining chunks for logging only. Current chunk: {str(chunk)[:100]}...")
-                    client_disconnected = True
-                else:
-                    verbose_proxy_logger.debug("✅ Client still connected")
-
-            ### CALL HOOKS ### - modify outgoing data
-            chunk = await proxy_logging_obj.async_post_call_streaming_hook(
+        async with disconnect_context:
+            async for chunk in proxy_logging_obj.async_post_call_streaming_iterator_hook(
                 user_api_key_dict=user_api_key_dict,
-                response=chunk,
-                data=request_data,
-                str_so_far=str_so_far,
-            )
+                response=response,
+                request_data=request_data,
+            ):
+                verbose_proxy_logger.debug(
+                    "async_data_generator: received streaming chunk - {}".format(chunk)
+                )
 
-            if isinstance(chunk, (ModelResponse, ModelResponseStream)):
-                response_str = litellm.get_response_string(response_obj=chunk)
-                str_so_far += response_str
+                ### CALL HOOKS ### - modify outgoing data
+                chunk = await proxy_logging_obj.async_post_call_streaming_hook(
+                    user_api_key_dict=user_api_key_dict,
+                    response=chunk,
+                    data=request_data,
+                    str_so_far=str_so_far,
+                )
 
-            if isinstance(chunk, BaseModel):
-                chunk = chunk.model_dump_json(exclude_none=True, exclude_unset=True)
-            elif isinstance(chunk, str) and chunk.startswith("data: "):
-                error_message = chunk
-                break
+                if isinstance(chunk, (ModelResponse, ModelResponseStream)):
+                    response_str = litellm.get_response_string(response_obj=chunk)
+                    str_so_far += response_str
 
-            # If client already disconnected, just consume remaining chunks for logging
-            if client_disconnected:
-                verbose_proxy_logger.debug(f"Client disconnected - consuming chunk for logging but not yielding: {str(chunk)[:100]}...")
-                continue
-                
-            # Only yield if client is still connected
-            if not client_disconnected:
+                if isinstance(chunk, BaseModel):
+                    chunk = chunk.model_dump_json(exclude_none=True, exclude_unset=True)
+                elif isinstance(chunk, str) and chunk.startswith("data: "):
+                    error_message = chunk
+                    break
+
+                # If client already disconnected, just consume remaining chunks for logging
+                if client_disconnected:
+                    verbose_proxy_logger.debug(
+                        "Client disconnected - consuming chunk for logging but not yielding: %s...",
+                        str(chunk)[:100],
+                    )
+                    continue
+
+                # Only yield if client is still connected
                 try:
                     yield f"data: {chunk}\n\n"
-                    verbose_proxy_logger.debug(f"Successfully yielded chunk to client: {str(chunk)[:50]}...")
+                    verbose_proxy_logger.debug(
+                        "Successfully yielded chunk to client: %s...", str(chunk)[:50]
+                    )
                 except Exception as e:
-                    verbose_proxy_logger.error(f"Exception yielding chunk to client: {type(e).__name__}: {str(e)}. Chunk: {str(chunk)[:100]}...")
+                    verbose_proxy_logger.error(
+                        "Exception yielding chunk to client: %s: %s. Chunk: %s...",
+                        type(e).__name__,
+                        str(e),
+                        str(chunk)[:100],
+                    )
                     # Mark as disconnected and continue consuming for logging
                     client_disconnected = True
+                    cancelled_cleanup = True
+                    if finalize_reason is None:
+                        finalize_reason = "client_disconnect"
 
         # Streaming is done, yield the [DONE] chunk only if client is still connected
-        verbose_proxy_logger.debug(f"🏁 ASYNC FOR LOOP COMPLETED NATURALLY - client_disconnected: {client_disconnected}")
+        verbose_proxy_logger.debug(
+            "🏁 ASYNC FOR LOOP COMPLETED NATURALLY - client_disconnected: %s",
+            client_disconnected,
+        )
         if not client_disconnected:
             try:
                 if error_message is not None:
                     yield error_message
-                    verbose_proxy_logger.debug(f"Successfully yielded error message to client: {error_message}")
+                    verbose_proxy_logger.debug(
+                        "Successfully yielded error message to client: %s",
+                        error_message,
+                    )
                 done_message = "[DONE]"
                 yield f"data: {done_message}\n\n"
                 verbose_proxy_logger.debug("Successfully yielded [DONE] message to client")
             except Exception as e:
-                verbose_proxy_logger.error(f"Exception yielding final messages to client: {type(e).__name__}: {str(e)}")
+                verbose_proxy_logger.error(
+                    "Exception yielding final messages to client: %s: %s",
+                    type(e).__name__,
+                    str(e),
+                )
                 client_disconnected = True
         else:
-            verbose_proxy_logger.debug("Stream completed - client disconnected but logging should have occurred")
-            
+            verbose_proxy_logger.debug(
+                "Stream completed - client disconnected but logging should have occurred"
+            )
+
     except asyncio.CancelledError as e:
-        verbose_proxy_logger.error(f"🛑 TASK CANCELLED - FastAPI likely cancelled the request handler: {e}")
+        client_disconnected = True
+        cancelled_cleanup = True
+        finalize_reason = "cancelled"
+        verbose_proxy_logger.debug(
+            "🛑 TASK CANCELLED - likely caused by client disconnect for %s \"%s %s\": %s",
+            client_addr,
+            req_method,
+            req_path,
+            e,
+        )
         raise  # Re-raise to let FastAPI handle it
     except Exception as e:
+        if finalize_reason is None:
+            finalize_reason = "error"
         verbose_proxy_logger.exception(
             f"💥 UNEXPECTED EXCEPTION in async_data_generator: {e}\n"
             "litellm.proxy.proxy_server.async_data_generator(): Exception occured - {}".format(
@@ -3492,6 +3759,24 @@ async def async_data_generator(
         )
         error_returned = json.dumps({"error": proxy_exception.to_dict()})
         yield f"data: {error_returned}\n\n"
+    finally:
+        reason = finalize_reason
+        if reason is None:
+            reason = "client_disconnect" if client_disconnected else "cleanup"
+        try:
+            await _finalize_stream_logging(
+                response_stream=response,
+                logging_obj=logging_obj,
+                reason=reason,
+                cancelled=cancelled_cleanup,
+            )
+        except Exception as exc:
+            verbose_proxy_logger.warning(
+                "Failed to finalize streaming logs during %s cleanup: %s",
+                reason,
+                exc,
+                exc_info=exc,
+            )
 
 
 def select_data_generator(
