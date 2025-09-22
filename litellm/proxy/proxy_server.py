@@ -3425,6 +3425,7 @@ async def _finalize_stream_logging(
     logging_obj: Optional[Any],
     reason: str,
     cancelled: bool,
+    collected_chunks: Optional[List[Any]] = None,
 ) -> None:
     """Ensure streaming usage/logging fires even if the client disconnects mid-stream."""
 
@@ -3444,9 +3445,13 @@ async def _finalize_stream_logging(
         return
 
     stream_chunks: List[Any] = []
+    if collected_chunks:
+        stream_chunks = list(collected_chunks)
+
     if hasattr(response_stream, "chunks"):
         try:
-            stream_chunks = list(getattr(response_stream, "chunks") or [])
+            if not stream_chunks:
+                stream_chunks = list(getattr(response_stream, "chunks") or [])
         except Exception as exc:
             verbose_proxy_logger.debug(
                 "Unable to read chunks from response stream during %s: %s",
@@ -3646,6 +3651,7 @@ async def async_data_generator(
     disconnect_context = cancel_on_disconnect(request)
 
     finalize_reason: Optional[str] = None
+    collected_chunks: List[Any] = []
 
     try:
         str_so_far = ""
@@ -3653,14 +3659,24 @@ async def async_data_generator(
         verbose_proxy_logger.debug("🚀 STARTING async_for_loop over streaming iterator")
 
         async with disconnect_context:
-            async for chunk in proxy_logging_obj.async_post_call_streaming_iterator_hook(
+            async for raw_chunk in proxy_logging_obj.async_post_call_streaming_iterator_hook(
                 user_api_key_dict=user_api_key_dict,
                 response=response,
                 request_data=request_data,
             ):
                 verbose_proxy_logger.debug(
-                    "async_data_generator: received streaming chunk - {}".format(chunk)
+                    "async_data_generator: received streaming chunk - {}".format(
+                        raw_chunk
+                    )
                 )
+
+                if isinstance(raw_chunk, (ModelResponse, ModelResponseStream)):
+                    try:
+                        collected_chunks.append(raw_chunk.model_copy(deep=True))
+                    except Exception:
+                        collected_chunks.append(copy.deepcopy(raw_chunk))
+
+                chunk = raw_chunk
 
                 ### CALL HOOKS ### - modify outgoing data
                 chunk = await proxy_logging_obj.async_post_call_streaming_hook(
@@ -3791,6 +3807,7 @@ async def async_data_generator(
                 logging_obj=logging_obj,
                 reason=reason,
                 cancelled=cancelled_cleanup,
+                collected_chunks=collected_chunks,
             )
         except Exception as exc:
             verbose_proxy_logger.warning(
