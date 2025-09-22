@@ -28,8 +28,6 @@ from typing import (
     get_type_hints,
 )
 
-from anyio import create_task_group
-
 from litellm.constants import (
     BASE_MCP_ROUTE,
     DEFAULT_MAX_RECURSE_DEPTH,
@@ -3351,50 +3349,74 @@ async def cancel_on_disconnect(request: Optional[Request]):
         req_path,
     )
 
-    async with create_task_group() as tg:
-        async def watch_disconnect() -> None:
-            try:
-                while True:
-                    message = await request.receive()
-                    message_type = message.get("type")
-                    if message_type == "http.disconnect":
-                        verbose_proxy_logger.debug(
-                            "%s - \"%s %s\" received http.disconnect; cancelling stream",
-                            client_addr,
-                            req_method,
-                            req_path,
-                        )
-                        tg.cancel_scope.cancel()
-                        break
-            except asyncio.CancelledError:
-                verbose_proxy_logger.debug(
-                    "cancel_on_disconnect watcher cancelled for %s \"%s %s\"",
-                    client_addr,
-                    req_method,
-                    req_path,
-                )
-            except Exception as exc:  # pragma: no cover - defensive logging only
-                verbose_proxy_logger.warning(
-                    "cancel_on_disconnect watcher exited with %s for %s \"%s %s\"",
-                    type(exc).__name__,
-                    client_addr,
-                    req_method,
-                    req_path,
-                    exc_info=exc,
-                )
+    parent_task = asyncio.current_task()
 
-        tg.start_soon(watch_disconnect)
+    if parent_task is None:
+        verbose_proxy_logger.warning(
+            "cancel_on_disconnect could not locate parent task for %s \"%s %s\"",
+            client_addr,
+            req_method,
+            req_path,
+        )
 
+    watcher_task: Optional[asyncio.Task] = None
+
+    async def watch_disconnect() -> None:
         try:
-            yield
-        finally:
+            while True:
+                message = await request.receive()
+                message_type = message.get("type")
+                if message_type == "http.disconnect":
+                    verbose_proxy_logger.debug(
+                        "%s - \"%s %s\" received http.disconnect; cancelling stream",
+                        client_addr,
+                        req_method,
+                        req_path,
+                    )
+                    if parent_task is not None:
+                        parent_task.cancel()
+                    break
+        except asyncio.CancelledError:
             verbose_proxy_logger.debug(
-                "cancel_on_disconnect cleanup for %s \"%s %s\"",
+                "cancel_on_disconnect watcher cancelled for %s \"%s %s\"",
                 client_addr,
                 req_method,
                 req_path,
             )
-            tg.cancel_scope.cancel()
+        except Exception as exc:  # pragma: no cover - defensive logging only
+            verbose_proxy_logger.warning(
+                "cancel_on_disconnect watcher exited with %s for %s \"%s %s\"",
+                type(exc).__name__,
+                client_addr,
+                req_method,
+                req_path,
+                exc_info=exc,
+            )
+        finally:
+            verbose_proxy_logger.debug(
+                "cancel_on_disconnect watcher finished for %s \"%s %s\"",
+                client_addr,
+                req_method,
+                req_path,
+            )
+
+    watcher_task = asyncio.create_task(watch_disconnect())
+
+    try:
+        yield
+    finally:
+        verbose_proxy_logger.debug(
+            "cancel_on_disconnect cleanup for %s \"%s %s\"",
+            client_addr,
+            req_method,
+            req_path,
+        )
+        if watcher_task is not None:
+            watcher_task.cancel()
+            try:
+                await watcher_task
+            except asyncio.CancelledError:
+                pass
 
 
 async def _finalize_stream_logging(
