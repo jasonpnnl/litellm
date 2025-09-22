@@ -3445,13 +3445,10 @@ async def _finalize_stream_logging(
         return
 
     stream_chunks: List[Any] = []
-    if collected_chunks:
-        stream_chunks = list(collected_chunks)
 
     if hasattr(response_stream, "chunks"):
         try:
-            if not stream_chunks:
-                stream_chunks = list(getattr(response_stream, "chunks") or [])
+            stream_chunks = list(getattr(response_stream, "chunks") or [])
         except Exception as exc:
             verbose_proxy_logger.debug(
                 "Unable to read chunks from response stream during %s: %s",
@@ -3474,6 +3471,9 @@ async def _finalize_stream_logging(
                     reason,
                     exc,
                 )
+
+    if not stream_chunks and collected_chunks:
+        stream_chunks = list(collected_chunks)
 
     if not stream_chunks:
         verbose_proxy_logger.debug(
@@ -3671,10 +3671,7 @@ async def async_data_generator(
                 )
 
                 if isinstance(raw_chunk, (ModelResponse, ModelResponseStream)):
-                    try:
-                        collected_chunks.append(raw_chunk.model_copy(deep=True))
-                    except Exception:
-                        collected_chunks.append(copy.deepcopy(raw_chunk))
+                    collected_chunks.append(raw_chunk)
 
                 chunk = raw_chunk
 
