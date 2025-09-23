@@ -500,6 +500,7 @@ class ProxyBaseLLMRequestProcessing:
                     response=response,
                     user_api_key_dict=user_api_key_dict,
                     request_data=self.data,
+                    request=request,
                 )
                 return await create_streaming_response(
                     generator=selected_data_generator,
