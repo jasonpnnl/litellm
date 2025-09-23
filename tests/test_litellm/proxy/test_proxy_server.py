@@ -998,12 +998,22 @@ async def test_async_data_generator_midstream_error():
     with patch("litellm.proxy.proxy_server.proxy_logging_obj", mock_proxy_logging_obj):
         # Create a mock response object
         mock_response = MagicMock()
+        
+        # Create a mock request object
+        mock_request = MagicMock()
+        mock_request.client = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.client.port = 8000
+        mock_request.url = MagicMock()
+        mock_request.url.path = "/v1/chat/completions"
+        mock_request.method = "POST"
+        mock_request.receive = AsyncMock(return_value={"type": "http.request"})
 
         # Collect all yielded data from the generator
         yielded_data = []
         try:
             async for data in async_data_generator(
-                mock_response, mock_user_api_key_dict, mock_request_data
+                mock_response, mock_user_api_key_dict, mock_request_data, mock_request
             ):
                 yielded_data.append(data)
         except Exception as e:

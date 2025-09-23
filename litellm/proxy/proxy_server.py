@@ -3316,25 +3316,12 @@ async def initialize(  # noqa: PLR0915
 
 
 @asynccontextmanager
-async def _noop_async_context():
-    """Async no-op context used when there is no FastAPI request available."""
-
-    yield
-
-
-@asynccontextmanager
-async def cancel_on_disconnect(request: Optional[Request]):
+async def cancel_on_disconnect(request: Request):
     """Cancel enclosed work if FastAPI notifies us about an http.disconnect event.
 
     Mirrors https://jasoncameron.dev/posts/fastapi-cancel-on-disconnect to ensure we
     tear down streaming tasks quickly when clients bail.
     """
-
-    if request is None:
-        # Nothing to monitor when we're invoked outside of a FastAPI request.
-        async with _noop_async_context():
-            yield
-        return
 
     client_addr = "-:-"
     if request.client is not None:
@@ -3629,7 +3616,7 @@ async def async_assistants_data_generator(
 
 
 async def async_data_generator(
-    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict, request: Optional[Request] = None
+    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict, request: Request
 ):
     verbose_proxy_logger.debug("inside generator")
     client_disconnected = False
@@ -3816,7 +3803,7 @@ async def async_data_generator(
 
 
 def select_data_generator(
-    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict, request: Optional[Request] = None
+    response, user_api_key_dict: UserAPIKeyAuth, request_data: dict, request: Request
 ):
     return async_data_generator(
         response=response,
