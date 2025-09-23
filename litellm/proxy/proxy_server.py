@@ -3320,7 +3320,7 @@ async def cancel_on_disconnect(request: Request):
     """Cancel enclosed work if FastAPI notifies us about an http.disconnect event.
 
     Mirrors https://jasoncameron.dev/posts/fastapi-cancel-on-disconnect to ensure we
-    tear down streaming tasks quickly when clients bail.
+    tear down streaming tasks quickly when clients bail while still logging usage.
     """
 
     client_addr = "-:-"
