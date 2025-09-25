@@ -2880,6 +2880,146 @@ class Logging(LiteLLMLoggingBaseClass):
             _new_callbacks.append(_c)
         return _new_callbacks
 
+    async def async_finalize_stream_from_chunks(
+        self,
+        *,
+        response_stream: Optional[Any] = None,
+        collected_chunks: Optional[List[Any]] = None,
+        reason: str,
+        cancelled: bool,
+    ) -> Optional[Union[ModelResponse, TextCompletionResponse, ResponsesAPIResponse]]:
+        """Reconstruct a streamed response and trigger success callbacks after disconnects."""
+
+        model_call_details = getattr(self, "model_call_details", {}) or {}
+        if model_call_details.get("async_complete_streaming_response") is not None or (
+            model_call_details.get("complete_streaming_response") is not None
+        ):
+            verbose_logger.debug(
+                "Stream logging already finalized before %s", reason
+            )
+            return model_call_details.get("async_complete_streaming_response") or (
+                model_call_details.get("complete_streaming_response")
+            )
+
+        stream_chunks: List[Any] = []
+
+        if response_stream is not None and hasattr(response_stream, "chunks"):
+            try:
+                stream_chunks = list(getattr(response_stream, "chunks") or [])
+            except Exception as exc:
+                verbose_logger.debug(
+                    "Unable to read chunks from response stream during %s: %s",
+                    reason,
+                    exc,
+                )
+
+        if not stream_chunks:
+            candidate_chunks: Optional[List[Any]] = getattr(
+                self, "streaming_chunks", None
+            )
+            if not candidate_chunks:
+                candidate_chunks = getattr(self, "sync_streaming_chunks", None)
+            if candidate_chunks:
+                try:
+                    stream_chunks = list(candidate_chunks)
+                except Exception as exc:
+                    verbose_logger.debug(
+                        "Unable to copy logging object's streaming chunks during %s: %s",
+                        reason,
+                        exc,
+                    )
+
+        if not stream_chunks and collected_chunks:
+            stream_chunks = list(collected_chunks)
+
+        if not stream_chunks:
+            verbose_logger.debug(
+                "No streaming chunks available to finalize usage during %s", reason
+            )
+            return None
+
+        chunk_copies: List[Any] = []
+        for chunk in stream_chunks:
+            if hasattr(chunk, "model_copy"):
+                try:
+                    chunk_copies.append(chunk.model_copy(deep=True))
+                    continue
+                except Exception:
+                    pass
+            try:
+                chunk_copies.append(copy.deepcopy(chunk))
+            except Exception:
+                chunk_copies.append(chunk)
+
+        try:
+            assembled_response = litellm.stream_chunk_builder(
+                chunks=chunk_copies,
+                messages=getattr(self, "messages", None),
+                logging_obj=self,
+            )
+        except Exception as exc:
+            verbose_logger.warning(
+                "Failed to assemble partial streaming response during %s cleanup: %s",
+                reason,
+                exc,
+                exc_info=exc,
+            )
+            return None
+
+        if assembled_response is None:
+            verbose_logger.debug(
+                "Assembled response is None while finalizing stream for %s", reason
+            )
+            return None
+
+        if cancelled:
+            try:
+                choices = getattr(assembled_response, "choices", [])
+                if choices:
+                    finish_reason = getattr(choices[0], "finish_reason", None)
+                    if finish_reason in (None, "", "stop"):
+                        choices[0].finish_reason = "cancelled"
+            except Exception as exc:
+                verbose_logger.debug(
+                    "Unable to set cancelled finish_reason on assembled response (%s): %s",
+                    reason,
+                    exc,
+                )
+
+        cache_hit_value = model_call_details.get("cache_hit", False)
+        if isinstance(cache_hit_value, str):
+            cache_hit = cache_hit_value.lower() == "true"
+        else:
+            cache_hit = bool(cache_hit_value)
+
+        try:
+            await self.async_success_handler(
+                result=assembled_response,
+                cache_hit=cache_hit,
+            )
+        except Exception as exc:
+            verbose_logger.warning(
+                "async_success_handler failed during %s cleanup: %s",
+                reason,
+                exc,
+                exc_info=exc,
+            )
+
+        try:
+            self.success_handler(
+                result=assembled_response,
+                cache_hit=cache_hit,
+            )
+        except Exception as exc:
+            verbose_logger.warning(
+                "success_handler failed during %s cleanup: %s",
+                reason,
+                exc,
+                exc_info=exc,
+            )
+
+        return assembled_response
+
     def _get_assembled_streaming_response(
         self,
         result: Union[

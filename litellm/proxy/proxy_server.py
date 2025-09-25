@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 from typing import (
     TYPE_CHECKING,
     Any,
+    Awaitable,
+    Callable,
     List,
     Literal,
     Optional,
@@ -3422,127 +3424,26 @@ async def _finalize_stream_logging(
         )
         return
 
-    model_call_details = getattr(logging_obj, "model_call_details", {}) or {}
-    if model_call_details.get("async_complete_streaming_response") is not None or (
-        model_call_details.get("complete_streaming_response") is not None
-    ):
+    finalize_helper = getattr(logging_obj, "async_finalize_stream_from_chunks", None)
+    if not callable(finalize_helper):
         verbose_proxy_logger.debug(
-            "Stream logging already finalized before %s", reason
+            "Logging object missing async_finalize_stream_from_chunks; skipping finalize"
         )
         return
-
-    stream_chunks: List[Any] = []
-
-    if hasattr(response_stream, "chunks"):
-        try:
-            stream_chunks = list(getattr(response_stream, "chunks") or [])
-        except Exception as exc:
-            verbose_proxy_logger.debug(
-                "Unable to read chunks from response stream during %s: %s",
-                reason,
-                exc,
-            )
-
-    if not stream_chunks:
-        candidate_chunks = None
-        if hasattr(logging_obj, "streaming_chunks"):
-            candidate_chunks = getattr(logging_obj, "streaming_chunks")
-        if not candidate_chunks and hasattr(logging_obj, "sync_streaming_chunks"):
-            candidate_chunks = getattr(logging_obj, "sync_streaming_chunks")
-        if candidate_chunks:
-            try:
-                stream_chunks = list(candidate_chunks)
-            except Exception as exc:
-                verbose_proxy_logger.debug(
-                    "Unable to copy logging object's streaming chunks during %s: %s",
-                    reason,
-                    exc,
-                )
-
-    if not stream_chunks and collected_chunks:
-        stream_chunks = list(collected_chunks)
-
-    if not stream_chunks:
-        verbose_proxy_logger.debug(
-            "No streaming chunks available to finalize usage during %s", reason
-        )
-        return
-
-    chunk_copies: List[Any] = []
-    for chunk in stream_chunks:
-        if hasattr(chunk, "model_copy"):
-            try:
-                chunk_copies.append(chunk.model_copy(deep=True))
-                continue
-            except Exception:
-                pass
-        try:
-            chunk_copies.append(copy.deepcopy(chunk))
-        except Exception:
-            chunk_copies.append(chunk)
 
     try:
-        assembled_response = litellm.stream_chunk_builder(
-            chunks=chunk_copies,
-            messages=getattr(logging_obj, "messages", None),
-            logging_obj=logging_obj,
+        finalize_helper_callable = cast(
+            Callable[..., Awaitable[Any]], finalize_helper
+        )
+        await finalize_helper_callable(
+            response_stream=response_stream,
+            collected_chunks=collected_chunks,
+            reason=reason,
+            cancelled=cancelled,
         )
     except Exception as exc:
         verbose_proxy_logger.warning(
-            "Failed to assemble partial streaming response during %s cleanup: %s",
-            reason,
-            exc,
-            exc_info=exc,
-        )
-        return
-
-    if assembled_response is None:
-        verbose_proxy_logger.debug(
-            "Assembled response is None while finalizing stream for %s", reason
-        )
-        return
-
-    if cancelled:
-        try:
-            choices = getattr(assembled_response, "choices", [])
-            if choices:
-                finish_reason = getattr(choices[0], "finish_reason", None)
-                if finish_reason in (None, "", "stop"):
-                    choices[0].finish_reason = "cancelled"
-        except Exception as exc:
-            verbose_proxy_logger.debug(
-                "Unable to set cancelled finish_reason on assembled response (%s): %s",
-                reason,
-                exc,
-            )
-
-    cache_hit_value = model_call_details.get("cache_hit", False)
-    if isinstance(cache_hit_value, str):
-        cache_hit = cache_hit_value.lower() == "true"
-    else:
-        cache_hit = bool(cache_hit_value)
-
-    try:
-        await logging_obj.async_success_handler(
-            result=assembled_response,
-            cache_hit=cache_hit,
-        )
-    except Exception as exc:
-        verbose_proxy_logger.warning(
-            "async_success_handler failed during %s cleanup: %s",
-            reason,
-            exc,
-            exc_info=exc,
-        )
-
-    try:
-        logging_obj.success_handler(
-            result=assembled_response,
-            cache_hit=cache_hit,
-        )
-    except Exception as exc:
-        verbose_proxy_logger.warning(
-            "success_handler failed during %s cleanup: %s",
+            "Failed to finalize streaming logs during %s cleanup: %s",
             reason,
             exc,
             exc_info=exc,
