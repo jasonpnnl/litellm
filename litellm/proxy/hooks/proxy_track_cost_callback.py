@@ -89,6 +89,19 @@ class _ProxyDBLogger(CustomLogger):
             org_id=user_api_key_dict.org_id,
         )
 
+    async def async_stream_finalize_event(
+        self,
+        kwargs,
+        response_obj,
+        reason: str,
+        cancelled: bool,
+    ) -> None:
+        metadata_container = kwargs.setdefault("litellm_params", {}).setdefault(
+            "metadata", {}
+        )
+        metadata_container["stream_finalize_reason"] = reason
+        metadata_container["stream_cancelled"] = cancelled
+
     @log_db_metrics
     async def _PROXY_track_cost_callback(
         self,

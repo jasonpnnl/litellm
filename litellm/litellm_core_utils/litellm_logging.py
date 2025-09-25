@@ -17,6 +17,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Awaitable,
     Dict,
     List,
     Literal,
@@ -2281,6 +2282,40 @@ class Logging(LiteLLMLoggingBaseClass):
                         model_call_details=model_call_details
                     )
                     ##################################
+                    finalize_reason = model_call_details.get("stream_finalize_reason")
+                    if finalize_reason is not None:
+                        finalize_hook = getattr(callback, "async_stream_finalize_event", None)
+                        if callable(finalize_hook):
+                            finalize_callable = cast(
+                                Callable[..., Awaitable[Any]], finalize_hook
+                            )
+                            try:
+                                response_for_finalize = (
+                                    model_call_details.get(
+                                        "async_complete_streaming_response"
+                                    )
+                                    or model_call_details.get(
+                                        "complete_streaming_response"
+                                    )
+                                    or result
+                                )
+                                await finalize_callable(
+                                    kwargs=model_call_details,
+                                    response_obj=response_for_finalize,
+                                    reason=finalize_reason,
+                                    cancelled=bool(
+                                        model_call_details.get(
+                                            "stream_cancelled", False
+                                        )
+                                    ),
+                                )
+                            except Exception as exc:
+                                verbose_logger.warning(
+                                    "async_stream_finalize_event failed for %s: %s",
+                                    getattr(callback, "__class__", type(callback)),
+                                    exc,
+                                    exc_info=exc,
+                                )
                     if self.stream is True:
                         if "async_complete_streaming_response" in model_call_details:
                             await callback.async_log_success_event(
@@ -2891,6 +2926,8 @@ class Logging(LiteLLMLoggingBaseClass):
         """Reconstruct a streamed response and trigger success callbacks after disconnects."""
 
         model_call_details = getattr(self, "model_call_details", {}) or {}
+        model_call_details["stream_finalize_reason"] = reason
+        model_call_details["stream_cancelled"] = cancelled
         if model_call_details.get("async_complete_streaming_response") is not None or (
             model_call_details.get("complete_streaming_response") is not None
         ):

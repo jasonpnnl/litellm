@@ -101,6 +101,16 @@ class CustomLogger:  # https://docs.litellm.ai/docs/observability/custom_callbac
     async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
         pass
 
+    async def async_stream_finalize_event(
+        self,
+        kwargs,
+        response_obj,
+        reason: str,
+        cancelled: bool,
+    ) -> None:
+        """Optional hook to observe stream finalization events (e.g., disconnects)."""
+        return None
+
     #### PROMPT MANAGEMENT HOOKS ####
 
     async def async_get_chat_completion_prompt(
